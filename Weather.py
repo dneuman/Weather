@@ -205,7 +205,9 @@ def Lowess(data, f=2. / 3., pts=None, itn=3):
     yEst:   (pandas.Series) The return value containing the smoothed data.
     """
     # Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
-    #          Dan Neuman (conversion to Pandas series)
+    #            original
+    #          Dan Neuman <https://github.com/dneuman>
+    #            conversion to Pandas series
     # License: BSD (3-clause)
 
     x = np.array(data.index)
