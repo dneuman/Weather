@@ -1,7 +1,31 @@
 #!/usr/bin/env python
 """Routines to deal with bulk weather data from Environment Canada
 
-   Current version uses Pandas to simplify manipulation
+   Routines:
+       * Setup
+       * Data Management:
+           * GetData - Get raw data from Environment Canada
+           * AddYears - Add years to data
+           * RawToDF - Load raw data obtained by wget
+           * SaveDF - Save consolidated data
+           * LoadDF - Load consolidated data
+       * Data Combining:
+           * GetMonths - Return data grouped by months
+           * GetYears - Return data grouped by years
+       * Data Smoothing:
+           * Lowess - Use locally weighted scatterplot smoothing
+           * SMLowess - Use statsmodel version of LOWESS
+           * WeightedMovingAverage - Use a triangular window for moving avg
+       * Data Plotting:
+           * TempPlot - Temperature plot with optional annotations
+           * TempRangePlot - Plot multiple temperatures (e.g. min, max)
+           * ErrorPlot - Plot showing 1 and 2 std dev from trend line
+           * RecordsPlot - Show all records on one graph
+           * PrecipPlot - Show precipitation
+           * SnowPlot - Show snowfall
+           * HotDaysPlot - Show number of hot days per year
+       * Miscellaneous:
+           * CompareSmoothing - Show how Lowess and WMA compare for trends
 """
 
 import time
