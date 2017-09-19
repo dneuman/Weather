@@ -26,6 +26,8 @@
            * HotDaysPlot - Show number of hot days per year
        * Miscellaneous:
            * CompareSmoothing - Show how Lowess and WMA compare for trends
+
+   Requires Python 3 (tested on 3.6)
 """
 
 import time
@@ -73,10 +75,12 @@ dataTypes = { #0: np.datetime64,  # "Date/Time"
 
 
 def GetData(year=None, city=0):
-    """Get a year's worth of data from Environment Canada site
-       as a list of strings in CSV format. Default is Ottawa
-       in current year"""
-    # update with correct URL info
+    """Get a year's worth of data from Environment Canada site.
+
+    year: (opt) Year to retrieve. Defaults to current year.
+    city: (opt) City to retrieve. Defaults to first city in list.
+    Returns Pandas data frame with daily data.
+    """
     if year is None:
         year = time.localtime().tm_year
     baseURL = ("http://climate.weather.gc.ca/climate_data/bulk_data_e.html?"
@@ -92,8 +96,14 @@ def GetData(year=None, city=0):
     return df
 
 def AddYears(df, sYear=None, eYear=None, city=0):
-    """Get desired years from online database, and merge them into the
-       supplied records list."""
+    """Merge desired years from online database,
+
+    df:    dataframe of daily data
+    sYear: (opt) start year, defaults to eYear
+    eYear: (opt) end year, defaults to current year
+    city:  (opt) City to retrieve. Defaults to first city in list.
+    Returns updated dataframe
+    """
     if (eYear is None):
         eYear = time.localtime().tm_year
     if (sYear is None):
@@ -104,12 +114,13 @@ def AddYears(df, sYear=None, eYear=None, city=0):
     return df
 
 def RawToDF(city=0, header=25):
-    """
-    Process all data in a directory, returning a data frame. `path` is the full
-    path to the station directory, and assumes data is in `.csv` format.
+    """Process all data in a directory, returning a data frame.
 
     Use if you have downloaded data from Environment Canada separately
-    with wget.
+    with wget. Assumes data in .csv format.
+
+    city:   (opt) City to retrieve. Defaults to first city in list.
+    header: (opt) Number of header rows in each .csv file. Defaults to 25
     """
     template = "/".join([basepath, stationName[city],"Raw/*.csv"])
     first = True
@@ -132,16 +143,23 @@ def RawToDF(city=0, header=25):
     return df
 
 def SaveDF(df, city=0):
-    """
-    Save weather data into a csv file
+    """Save consolidated weather data into a .csv file
+
+    df:   data frame of daily weather to save
+    city: (opt) City to retrieve. Defaults to first city in list.
+
+    Assumes data saveable at /basepath/city/Data/
     """
     file = "/".join([basepath, stationName[city], "Data/complete.csv"])
     df.to_csv(file,
               float_format="% .1f")
 
 def LoadDF(city=0):
-    """
-    Load weather data into a data frame
+    """Load weather data into a data frame
+
+    city: (opt) City to retrieve. Defaults to first city in list.
+
+    Assumes data located at /basepath/city/Data/
     """
     file = "/".join([basepath, stationName[city], "Data/complete.csv"])
     df = pd.read_csv(file,
@@ -157,10 +175,15 @@ def LoadDF(city=0):
 # user styles can be placed in ~/.matplotlib/
 
 def GetMonths(df, col, func=np.mean):
-    """
-    Take a panda dataframe (df) and return a new dataframe containing
-    monthly values for the supplied column index.
-    The value is aggregated using the supplied numpy function.
+    """Convert daily data to monthly data
+
+    df:    dataframe containing daily data
+    col:   column to be combined
+    func:  (opt) function to use for combining. Defaults to mean (average)
+    Returns dataframe with the grouped monthly data in each columns
+
+    Only works for 1 column at a time due to extra complexity of multi-level
+    axes when months are already columns.
     """
 
     colNames = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr',
@@ -178,10 +201,12 @@ def GetMonths(df, col, func=np.mean):
 
 
 def GetYears(df, cols=[4, 6, 8], func=np.mean):
-    """
-    Take a panda dataframe containing daily weather values and return a
-    new dataframe containing annual values for the supplied list of columns.
-    The values are aggregated using the supplied numpy function.
+    """Convert daily data to yearly data.
+
+    df:    dataframe containing daily data
+    cols:  (opt) columns to be combined. Defaults to min, max, avg temps
+    func:  (opt) function to use for combining. Defaults to mean (average)
+    Returns dataframe with the grouped annual data
     """
     labels = df.columns[cols]
     yr = df.pivot_table(values=list(labels),
@@ -189,9 +214,9 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
                         aggfunc=func)
     return yr
 
-def Lowess(data, f=2. / 3., pts=None, itn=3):
-    """Lowess(s, f=2./3., pts=None, itn=3) -> yEst
-    Lowess smoother: Robust locally weighted regression.
+def Lowess(data, f=2./3., pts=None, itn=3):
+    """Lowess smoother: Robust locally weighted regression.
+
     The lowess function fits a nonparametric regression curve to a scatterplot.
 
     data:   (pandas.Series) contains data points in the scatterplot. The
@@ -238,30 +263,37 @@ def Lowess(data, f=2. / 3., pts=None, itn=3):
         delta = (1 - delta ** 2) ** 2
     return pd.Series(yEst, index=data.index, name='Trend')
 
-def SMLowess(data, f=2. /3., pts=None, iter=3):
+def SMLowess(data, f=2./3., pts=None, itn=3):
+    """Return Statsmodels lowess smoothing as a series.
+
+    data:  Data series containing data to be smoothed
+    f:     Fraction of data to use for smoothing
+    pts:   (opt) Number of data points to use instead of fraction
+    itn:   (opt) number of iterations to smooth.
+    Returns a data series containing smoothed points.
+    """
     x = np.array(data.index)
     y = data.values
     n = len(data)
     if pts is not None:
         f = pts / n
-    est = sm.nonparametric.lowess(y, x, frac=f, it=iter)
+    est = sm.nonparametric.lowess(y, x, frac=f, it=itn)
     return pd.Series(est[:,1], index=est[:,0], name='Trend')
 
 
 def WeightedMovingAverage(s, size, const=False):
-    """
-    Apply a weighted moving average on the supplied series
-    using the supplied window. The window is
-    partially applied at the beginning and end of the data to reduce
-    artifacts.
+    """Apply a weighted moving average on the supplied series.
 
     s:     Pandas series containing data to be averaged
     size:  integer indicating how wide a triangular window to use
     const: keep number of data points used constant at beginning and end.
            If True, window is increase, but clipped to `size` points centred
            on current point.
-
     Returns Pandas Series containing smoothed data
+
+    Uses a triangular (Hamming) window for weights, centered on each point.
+    For points near the beginning or end of data, special processing is
+    required that isn't in built-in functions.
     """
     def SetLimits(i, hw):
         # i: current data location where window is centred
@@ -307,6 +339,8 @@ def WeightedMovingAverage(s, size, const=False):
 def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
              cols=[4, 6, 8],
              annotatePDO=False):
+    """Plot indicated columns of data, with optional annotations"""
+
     yr = GetYears(df, cols=cols)
     styles = [['r-', 'ro-'], ['c-', 'co-'], ['k-', 'ko-']]
     # Set baseline annotation line
@@ -368,8 +402,11 @@ def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
 
 
 def TempRangePlot(df, col=[4, 6, 8], size=15, change=True, fignum=2, city=0):
+    """Simple plot with optional baseline.
+
+    Currently requires 3 columns to work (min, max, mean).
+    """
     yr = GetYears(df)
-    yr = yr.drop(yr.index[0])
     hi = WeightedMovingAverage(yr.iloc[:, 0], size)
     mn = WeightedMovingAverage(yr.iloc[:, 1], size)
     lo = WeightedMovingAverage(yr.iloc[:, 2], size)
@@ -394,8 +431,8 @@ def CompareSmoothing(df, cols=[8],
                      size=15,
                      frac=2./3., pts=None, itn=3,
                      fignum=9, city=0):
-    """
-    Comparison between moving weighted average and lowess smoothing.
+    """Comparison between moving weighted average and lowess smoothing.
+
     df: daily records for a city
     cols: list of columns to use. Currently only uses first column supplied.
     size: size of moving average window
@@ -439,8 +476,7 @@ def CompareSmoothing(df, cols=[8],
     return
 
 def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
-    """
-    Showing standard deviation of temperature from trend.
+    """Show standard deviation of temperature from trend.
 
     df: DataFrame containing Environment Canada data with standard columns.
     cols: list of columns to use. Currently only uses first column supplied.
@@ -474,11 +510,11 @@ def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
 
 
 def RecordsPlot(df, fignum=5, city=0):
-    """
-    Go through all data and plot every day where a weather record
-    is made: max and min highs and lows, and record rain and snow.
+    """Plot all records in daily data.
 
-    df: DataFrame containing Environment Canada data with standard columns.
+    df:     DataFrame containing daily data with standard columns.
+    fignum: (opt) Figure to use. Useful to keep multiple plots separated.
+    city:   (opt) City to use for titles. Defaults to first city in list.
     """
 
     def ToNow(t):
@@ -549,10 +585,11 @@ def RecordsPlot(df, fignum=5, city=0):
 
 
 def PrecipPlot(df, fignum=6, city=0):
-    """
-    Go through all data and plot every day where it rained or snowed.
+    """Go through all data and plot every day where it rained or snowed.
 
-    df: DataFrame containing Environment Canada data with standard columns.
+    df:     DataFrame containing Environment Canada data with standard columns.
+    fignum: (opt) Figure to use. Useful to keep multiple plots separated.
+    city:   (opt) City to use for titles. Defaults to first city in list.
     """
 
     def ToNow(t):
@@ -596,7 +633,9 @@ def SnowPlot(df, fignum=7, city=0):
     """
     Go through all data and plot first and last day of snow for the year.
 
-    df: DataFrame containing Environment Canada daily data with standard columns.
+    df:     DataFrame containing daily data with standard columns.
+    fignum: (opt) Figure to use. Useful to keep multiple plots separated.
+    city:   (opt) City to use for titles. Defaults to first city in list.
     """
 
     # set up data for each set of records:
@@ -657,8 +696,11 @@ def SnowPlot(df, fignum=7, city=0):
 
 def HotDaysPlot(df, city, fignum=8):
     """
-    Plots a bar chart of days each year over 25 and 30 °C. Assumes df is a
-    daily table.
+    Plots a bar chart of days each year over 25 and 30 °C.
+
+    df:     DataFrame containing daily data with standard columns.
+    fignum: (opt) Figure to use. Useful to keep multiple plots separated.
+    city:   (opt) City to use for titles. Defaults to first city in list.
     """
     width = 0.35
     days = df.iloc[:, [0,4]]
@@ -674,9 +716,9 @@ def HotDaysPlot(df, city, fignum=8):
     fig = plt.figure(fignum)
     fig.clear()
     ind = np.arange(len(hotc.index))
-    # fix x locations +- ind
+    # TODO fix x locations +- ind
     p1 = plt.bar(ind, hotc.iloc[:,0], width, color='red')
-    # fix prob with rows being diff length due to years not in list
+    # TODO fix prob with rows being diff length due to years not in list
     p2 = plt.bar(ind, warmc.iloc[:,0], width, color='orange')
     plt.legend((p2[0], p1[0]), ('Days > 25°C', 'Days > 30°C'))
     plt.title("Warm and Hot Days for "+stationName[city])
