@@ -247,22 +247,28 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
     else:  # allow use of number of points to determine smoothing
         r = int(np.min([pts, n]))
     order = max([1, order])
+    # Create matrix of 1, x, x**2, x**3, etc, by row
+    xm = np.array([x**j for j in range(order+1)])
+    # Create weight matrix, one column per data point
     h = [np.sort(np.abs(x - x[i]))[r] for i in range(n)]
     w = np.clip(np.abs((x[:, None] - x[None, :]) / h), 0.0, 1.0)
     w = (1 - w ** 3) ** 3
+    # Set up output
     yEst = np.zeros(n)
-    delta = np.ones(n)
-    xm = np.ones((n, order+1)) #
+    delta = np.ones(n)  # Additional weights for iterations
     for iteration in range(itn):
         for i in range(n):
             weights = delta * w[:, i]
-            xm = [weights * x**j for j in range(order+1)] #
-            b = np.array([np.sum(weights * y), np.sum(weights * y * x)])
-            A = np.array([[np.sum(weights), np.sum(weights * x)],
-                          [np.sum(weights * x), np.sum(weights * x * x)]])
+            xw = np.array([weights * x**j for j in range(order+1)]) #
+            b = xw.dot(y)
+            A = xw.dot(xm.T)
+            #b = np.array([np.sum(weights * y), np.sum(weights * y * x)])
+            #A = np.array([[np.sum(weights), np.sum(weights * x)],
+            #              [np.sum(weights * x), np.sum(weights * x * x)]])
             beta = linalg.solve(A, b)
-            yEst[i] = beta[0] + beta[1] * x[i]
-
+            yEst[i] = sum([beta[j] * x[i]**j for j in range(order+1)])
+            # yEst[i] = beta[0] + beta[1] * x[i]
+        # Set up weights to reduce effect of outlier points on next iteration
         residuals = y - yEst
         s = np.median(np.abs(residuals))
         delta = np.clip(residuals / (6.0 * s), -1, 1)
