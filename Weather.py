@@ -214,7 +214,7 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
                         aggfunc=func)
     return yr
 
-def Lowess(data, f=2./3., pts=None, itn=3):
+def Lowess(data, f=2./3., pts=None, itn=3, order=1):
     """Lowess smoother: Robust locally weighted regression.
 
     The lowess function fits a nonparametric regression curve to a scatterplot.
@@ -227,6 +227,9 @@ def Lowess(data, f=2./3., pts=None, itn=3):
             smoothing can be passed through pts instead of f.
     itn:    (int) The number of robustifying iterations. The function will run
             faster with a smaller number of iterations.
+    order:  (int) the order of the polynomial used for fitting. Defaults to 1
+            (straight line). Values < 1 are made 1. Values greater than 4 are
+            allowed, but probably not useful.
     yEst:   (pandas.Series) The return value containing the smoothed data.
     """
     # Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
@@ -243,14 +246,17 @@ def Lowess(data, f=2./3., pts=None, itn=3):
         r = int(np.ceil(f * n))
     else:  # allow use of number of points to determine smoothing
         r = int(np.min([pts, n]))
+    order = max([1, order])
     h = [np.sort(np.abs(x - x[i]))[r] for i in range(n)]
     w = np.clip(np.abs((x[:, None] - x[None, :]) / h), 0.0, 1.0)
     w = (1 - w ** 3) ** 3
     yEst = np.zeros(n)
     delta = np.ones(n)
+    xm = np.ones((n, order+1)) #
     for iteration in range(itn):
         for i in range(n):
             weights = delta * w[:, i]
+            xm = [weights * x**j for j in range(order+1)] #
             b = np.array([np.sum(weights * y), np.sum(weights * y * x)])
             A = np.array([[np.sum(weights), np.sum(weights * x)],
                           [np.sum(weights * x), np.sum(weights * x * x)]])
