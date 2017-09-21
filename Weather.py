@@ -27,7 +27,7 @@
        * Miscellaneous:
            * CompareSmoothing - Show how Lowess and WMA compare for trends
 
-   Requires Python 3 (tested on 3.6)
+   Requires Python 3 (tested on 3.6.1, Anaconda distribution)
 """
 
 import time
@@ -216,18 +216,31 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
 def Lowess(data, f=2./3., pts=None, itn=3, order=1):
     """Fits a nonparametric regression curve to a scatterplot.
 
-    data:   (pandas.Series) contains data points in the scatterplot. The
-            function returns the estimated (smooth) values of y.
-    f:      (float) the fraction of the data set to use for smoothing. A
-            larger value for f will result in a smoother curve.
-    pts:    (int) Optionally, the explicit number of data points to be used for
-            smoothing can be passed through pts instead of f.
-    itn:    (int) The number of robustifying iterations. The function will run
-            faster with a smaller number of iterations.
-    order:  (int) the order of the polynomial used for fitting. Defaults to 1
-            (straight line). Values < 1 are made 1. Values greater than 4 are
-            allowed, but probably not useful.
-    Returns pandas.Series containing the smoothed data.
+    Parameters
+    ----------
+    data : pandas.Series
+        Data points in the scatterplot. The
+        function returns the estimated (smooth) values of y.
+
+    **Optionals**
+
+    f : float
+        The fraction of the data set to use for smoothing. A
+        larger value for f will result in a smoother curve.
+    pts : int
+        The explicit number of data points to be used for
+        smoothing instead of f.
+    itn : int
+        The number of robustifying iterations. The function will run
+        faster with a smaller number of iterations.
+    order : int
+        The order of the polynomial used for fitting. Defaults to 1
+        (straight line). Values < 1 are made 1. Larger values should be
+        chosen based on shape of data (# of peaks and valleys + 1)
+
+    Returns
+    -------
+    pandas.Series containing the smoothed data.
     """
     # Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
     #            original
@@ -246,6 +259,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
         r = int(np.ceil(f * n))
     else:  # allow use of number of points to determine smoothing
         r = int(np.min([pts, n]))
+    r = min([r, n-1])
     order = max([1, order])
     # Create matrix of 1, x, x**2, x**3, etc, by row
     xm = np.array([x**j for j in range(order+1)])
@@ -289,19 +303,40 @@ def SMLowess(data, f=2./3., pts=None, itn=3):
     return pd.Series(est[:,1], index=est[:,0], name='Trend')
 
 
-def WeightedMovingAverage(s, size, const=False):
+def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
     """Apply a weighted moving average on the supplied series.
 
-    s:     Pandas series containing data to be averaged
-    size:  integer indicating how wide a triangular window to use
-    const: keep number of data points used constant at beginning and end.
-           If True, window is increase, but clipped to `size` points centred
-           on current point.
-    Returns Pandas Series containing smoothed data
+    Parameters
+    ----------
+    s : Pandas series
+        data to be averaged
+    size : integer
+        how wide a triangular window to use
 
-    Uses a triangular (Hamming) window for weights, centered on each point.
-    For points near the beginning or end of data, special processing is
-    required that isn't in built-in functions.
+    **Optionals**
+
+    const : Boolean
+        flag determining whether to keep number of data points used
+        constant at beginning and end. If True, window is increased, but
+        clipped to `size` points centred on current point.
+    winType : Function
+        Window function that takes an integer (window size) and returns a list
+        of weights to be applied to the data. The default is np.Hamming
+        (triangular). Other possible windows are
+
+        * np.bartlett (triangular with endpoints of 0)
+        * np.blackman (3 cosines creating taper)
+        * np.hanning (weighted cosine)
+
+    Returns
+    -------
+    Pandas Series containing smoothed data
+
+    Notes
+    -----
+    Defaults to using a triangular (Hamming) window for weights, centered on
+    each point. For points near the beginning or end of data, special
+    processing is required that isn't in built-in functions.
     """
     def SetLimits(i, hw):
         # i: current data location where window is centred
@@ -313,7 +348,7 @@ def WeightedMovingAverage(s, size, const=False):
         return ds, de, ws, we
 
     size += (size+1) % 2  # make odd
-    window = np.hamming(size)
+    window = winType(size)
     window /= window.sum()  # normalize window
     a = pd.Series(np.convolve(s, window, mode='same'),
                   index=s.index,
@@ -332,7 +367,7 @@ def WeightedMovingAverage(s, size, const=False):
         ds = dataLen-size-1
         de = dataLen-1
         for i in range(dataLen-hw-1, dataLen):  # fix the end
-            window = np.hamming(2*(i-ds)+1)
+            window = winType(2*(i-ds)+1)
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[:size])
     else: # keep window size the same, but follow current point
         for i in range(hw+1):  # fix the start
@@ -451,25 +486,30 @@ def CompareSmoothing(df, cols=[8],
     yf = GetYears(df, cols)
     yf = yf - yf.iloc[:30].mean()
     col = yf.columns[0]
+    y = yf[col]
     fig = plt.figure(fignum)
     fig.clear()
     plt.style.use('ggplot')
-    plt.plot(yf[col], 'ko-', lw=1, alpha=0.2,
-             label=(stationName[city]+' Annual Mean Temperature'))
+    plt.plot(y, 'ko-', lw=1, alpha=0.2,
+             label=(stationName[city]+' '+col))
+    if pts==None:
+        p = np.ceil(frac * len(y))
+    else:
+        p = pts
 
-    ma = WeightedMovingAverage(yf[col], size)
+    ma = WeightedMovingAverage(y, size)
     plt.plot(ma, 'b-', alpha=0.5, lw=2, label='Weighted Moving Average')
 
-    #mc = WeightedMovingAverage(yf[col], size, const=True)
+    #mc = WeightedMovingAverage(y, size, const=True)
     #plt.plot(mc, 'r-', alpha=0.5, lw=2, label='WMA Constant Window')
 
-    lo = Lowess(yf[col], f=frac, pts=pts, itn=itn)
+    lo = Lowess(y, f=frac, pts=pts, itn=itn)
     plt.plot(lo, 'g-', alpha=0.5, lw=2, label='Lowess (linear)')
 
-    lp = Lowess(yf[col], f=frac, pts=pts, itn=itn, order=order)
+    lp = Lowess(y, f=frac, pts=pts, itn=itn, order=order)
     plt.plot(lp, 'r-', alpha=0.5, lw=2, label='Lowess (polynomial)')
 
-    #so = SMLowess(yf[col], f=frac, pts=pts, iter=itn)
+    #so = SMLowess(y, f=frac, pts=pts, iter=itn)
     #plt.plot(so, 'c-', alpha=0.5, lw=2, label='SM Lowess')
 
     plt.title('Comparison between Weighted Moving Average and Lowess')
@@ -488,7 +528,7 @@ def CompareSmoothing(df, cols=[8],
            "  Iterations: {2}\n"
            "  Polynomial Order: {3}\n"
            "Chart: @Dan613")
-    box = boxt.format(size, pts, itn, order)
+    box = boxt.format(size, p, itn, order)
     plt.text(1987, -1.9, box)
     plt.show()
     return
