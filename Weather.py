@@ -214,9 +214,7 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
     return yr
 
 def Lowess(data, f=2./3., pts=None, itn=3, order=1):
-    """Lowess smoother: Robust locally weighted regression.
-
-    The lowess function fits a nonparametric regression curve to a scatterplot.
+    """Fits a nonparametric regression curve to a scatterplot.
 
     data:   (pandas.Series) contains data points in the scatterplot. The
             function returns the estimated (smooth) values of y.
@@ -271,8 +269,6 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
         s = np.median(np.abs(residuals))
         delta = np.clip(residuals / (6.0 * s), -1, 1)
         delta = (1 - delta ** 2) ** 2
-    e = sum((y - yEst)**2)**.5
-    print("Error Order {0} is {1}".format(order, e))
     return pd.Series(yEst, index=data.index, name='Trend')
 
 def SMLowess(data, f=2./3., pts=None, itn=3):
