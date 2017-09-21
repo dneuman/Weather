@@ -22,6 +22,8 @@ The routines do the following functions:
 ## Current Work
 I'm investigating smoothing techniques such as adding polynomial regression to lowess, and possibly SSA. An interesting discussion on smoothing can be found at: https://tamino.wordpress.com/2014/01/11/smooth-3/
 
+**Update**: Polynomial regression has been added to lowess, but it is less useful than I expected. Higher orders allow more peaks and valleys, so there is actually *less* smoothing of the data (unless you use a really large window), although the RMS error is reduced. Onwards to look at Singular Spectrum Analysis.
+
 ## Upcoming Changes
 * I will eventually move the smoothing functions into their own file to make them useful elsewhere.
 * The initializing weather stations and cities will be put into a text file loaded at the beginning to add more flexibility. Change a file, rather than changing the source code. I may do the same with the basepath variable, or determine from code location.
