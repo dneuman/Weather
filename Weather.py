@@ -36,7 +36,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import datetime as dt
-from scipy import linalg
 import statsmodels.api as sm
 
 
@@ -230,16 +229,19 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
     order:  (int) the order of the polynomial used for fitting. Defaults to 1
             (straight line). Values < 1 are made 1. Values greater than 4 are
             allowed, but probably not useful.
-    yEst:   (pandas.Series) The return value containing the smoothed data.
+    Returns pandas.Series containing the smoothed data.
     """
     # Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
     #            original
     #          Dan Neuman <https://github.com/dneuman>
-    #            conversion to Pandas series
+    #            converted to Pandas series and extended to polynomials
     # License: BSD (3-clause)
 
-    x = np.array(data.index)
-    y = (data.values)
+    x = np.array(data.index, dtype=float)
+    # condition x-values to be between 0 and 1 to reduce errors in linalg
+    x = x - x.min()
+    x = x / x.max()
+    y = data.values
     n = len(data)
     if pts is None:
         f = np.min([f, 1.0])
@@ -259,20 +261,18 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
     for iteration in range(itn):
         for i in range(n):
             weights = delta * w[:, i]
-            xw = np.array([weights * x**j for j in range(order+1)]) #
+            xw = np.array([weights * x**j for j in range(order+1)])
             b = xw.dot(y)
-            A = xw.dot(xm.T)
-            #b = np.array([np.sum(weights * y), np.sum(weights * y * x)])
-            #A = np.array([[np.sum(weights), np.sum(weights * x)],
-            #              [np.sum(weights * x), np.sum(weights * x * x)]])
-            beta = linalg.solve(A, b)
+            a = xw.dot(xm.T)
+            beta = np.linalg.solve(a, b)
             yEst[i] = sum([beta[j] * x[i]**j for j in range(order+1)])
-            # yEst[i] = beta[0] + beta[1] * x[i]
         # Set up weights to reduce effect of outlier points on next iteration
         residuals = y - yEst
         s = np.median(np.abs(residuals))
         delta = np.clip(residuals / (6.0 * s), -1, 1)
         delta = (1 - delta ** 2) ** 2
+    e = sum((y - yEst)**2)**.5
+    print("Error Order {0} is {1}".format(order, e))
     return pd.Series(yEst, index=data.index, name='Trend')
 
 def SMLowess(data, f=2./3., pts=None, itn=3):
@@ -441,32 +441,41 @@ def TempRangePlot(df, col=[4, 6, 8], size=15, change=True, fignum=2, city=0):
 
 def CompareSmoothing(df, cols=[8],
                      size=15,
-                     frac=2./3., pts=None, itn=3,
+                     frac=2./3., pts=None, itn=3, order=2,
                      fignum=9, city=0):
     """Comparison between moving weighted average and lowess smoothing.
 
-    df: daily records for a city
-    cols: list of columns to use. Currently only uses first column supplied.
-    size: size of moving average window
-    frac: fraction of data to use for lowess window
-    itn:  number of iterations to use for lowess
+    df:    daily records for a city
+    cols:  list of columns to use. Currently only uses first column supplied.
+    size:  size of moving average window
+    frac:  fraction of data to use for lowess window
+    itn:   number of iterations to use for lowess
+    order: order of the lowess polynomial
     """
     yf = GetYears(df, cols)
     yf = yf - yf.iloc[:30].mean()
     col = yf.columns[0]
-    ma = WeightedMovingAverage(yf[col], size)
-    #mc = WeightedMovingAverage(yf[col], size, const=True)
-    lo = Lowess(yf[col], f=frac, pts=pts, iter=itn)
-    #so = SMLowess(yf[col], f=frac, pts=pts, iter=itn)
     fig = plt.figure(fignum)
     fig.clear()
     plt.style.use('ggplot')
     plt.plot(yf[col], 'ko-', lw=1, alpha=0.2,
              label=(stationName[city]+' Annual Mean Temperature'))
+
+    ma = WeightedMovingAverage(yf[col], size)
     plt.plot(ma, 'b-', alpha=0.5, lw=2, label='Weighted Moving Average')
+
+    #mc = WeightedMovingAverage(yf[col], size, const=True)
     #plt.plot(mc, 'r-', alpha=0.5, lw=2, label='WMA Constant Window')
-    plt.plot(lo, 'g-', alpha=0.5, lw=2, label='Lowess')
+
+    lo = Lowess(yf[col], f=frac, pts=pts, itn=itn)
+    plt.plot(lo, 'g-', alpha=0.5, lw=2, label='Lowess (linear)')
+
+    lp = Lowess(yf[col], f=frac, pts=pts, itn=itn, order=order)
+    plt.plot(lp, 'r-', alpha=0.5, lw=2, label='Lowess (polynomial)')
+
+    #so = SMLowess(yf[col], f=frac, pts=pts, iter=itn)
     #plt.plot(so, 'c-', alpha=0.5, lw=2, label='SM Lowess')
+
     plt.title('Comparison between Weighted Moving Average and Lowess')
     plt.legend(loc='upper left')
     plt.ylabel('Temperature Change from Baseline (°C)')
@@ -481,8 +490,9 @@ def CompareSmoothing(df, cols=[8],
            "Lowess:\n"
            "  Size: {1}\n"
            "  Iterations: {2}\n"
+           "  Polynomial Order: {3}\n"
            "Chart: @Dan613")
-    box = boxt.format(size, pts, itn)
+    box = boxt.format(size, pts, itn, order)
     plt.text(1987, -1.9, box)
     plt.show()
     return
