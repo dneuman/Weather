@@ -27,3 +27,4 @@ I'm investigating smoothing techniques such as adding polynomial regression to l
 ## Upcoming Changes
 * I will eventually move the smoothing functions into their own file to make them useful elsewhere.
 * The initializing weather stations and cities will be put into a text file loaded at the beginning to add more flexibility. Change a file, rather than changing the source code. I may do the same with the basepath variable, or determine from code location.
+* Several more graph types towards the end of the year.
