@@ -378,6 +378,25 @@ def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
     return a
 
+def SSA(s, order):
+    """
+
+
+    Examples
+    --------
+    y = [1.0135518, - 0.7113242, - 0.3906069, 1.565203, 0.0439317,
+         - 1.1656093, 1.0701692, 1.0825379, - 1.2239744, - 0.0321446,
+         1.1815997, - 1.4969448, - 0.7455299, 1.0973884, - 0.2188716,
+         - 1.0719573, 0.9922009, 0.4374216, - 1.6880219, 0.2609807]
+
+    """
+    n = len(s)
+    y = np.array(s.values)
+    cor = np.correlate(y, y, mode='full')[n-1:n-1+order]/n
+    c = np.array([[cor[abs(i-j)] for i in range(order)] for j in range(order)])
+    lam, rho = np.linalg.eig(c)
+
+    return
 
 def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
              cols=[4, 6, 8],
