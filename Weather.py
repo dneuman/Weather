@@ -34,6 +34,7 @@ import time
 import glob
 import matplotlib.pyplot as plt
 import pandas as pd
+pd.options.display.float_format = '{:.1f}'.format  # change print format
 import numpy as np
 import datetime as dt
 import statsmodels.api as sm
@@ -378,7 +379,7 @@ def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
     return a
 
-def SSA(s, order):
+def SSA(s, m):
     """
 
 
@@ -392,11 +393,25 @@ def SSA(s, order):
     """
     n = len(s)
     y = np.array(s.values)
-    cor = np.correlate(y, y, mode='full')[n-1:n-1+order]/n
-    c = np.array([[cor[abs(i-j)] for i in range(order)] for j in range(order)])
+    mr = range(m)
+    ys = np.zeros((n,m))  # time shifted y-values
+    for i in mr:
+        ys[:n-i,i] = y[i:]
+    # get autocorrelation at first `order` time lags
+    cor = np.correlate(y, y, mode='full')[n-1:n-1+m]/n
+    # make toeplitz matrix (diagonal, symmetric)
+    c = np.array([[cor[abs(i-j)] for i in mr] for j in mr])
+    # get eigenvalues and eigenvectors
     lam, rho = np.linalg.eig(c)
-
-    return
+    pc = ys.dot(rho)  # principle components
+    # reconstruct the components in proper frame
+    rc = np.zeros((n,m))
+    for j in mr:
+        z=np.zeros((n,m))
+        for i in mr:  # make time shifted principle component matrix
+            z[i:,i] = pc[:n-i,j]
+        rc[:,j] = z.dot(rho[:,j])/m
+    return rc
 
 def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
              cols=[4, 6, 8],
