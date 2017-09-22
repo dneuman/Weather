@@ -2,30 +2,33 @@
 """Routines to deal with bulk weather data from Environment Canada
 
    Routines:
-       * Setup
-       * Data Management:
-           * GetData - Get raw data from Environment Canada
-           * AddYears - Add years to data
-           * RawToDF - Load raw data obtained by wget
-           * SaveDF - Save consolidated data
-           * LoadDF - Load consolidated data
-       * Data Combining:
-           * GetMonths - Return data grouped by months
-           * GetYears - Return data grouped by years
-       * Data Smoothing:
-           * Lowess - Use locally weighted scatterplot smoothing
-           * SMLowess - Use statsmodel version of LOWESS
-           * WeightedMovingAverage - Use a triangular window for moving avg
-       * Data Plotting:
-           * TempPlot - Temperature plot with optional annotations
-           * TempRangePlot - Plot multiple temperatures (e.g. min, max)
-           * ErrorPlot - Plot showing 1 and 2 std dev from trend line
-           * RecordsPlot - Show all records on one graph
-           * PrecipPlot - Show precipitation
-           * SnowPlot - Show snowfall
-           * HotDaysPlot - Show number of hot days per year
-       * Miscellaneous:
-           * CompareSmoothing - Show how Lowess and WMA compare for trends
+
+   * Setup:
+
+   * Data Management:
+       * GetData - Get raw data from Environment Canada
+       * AddYears - Add years to data
+       * RawToDF - Load raw data obtained by wget
+       * SaveDF - Save consolidated data
+       * LoadDF - Load consolidated data
+   * Data Combining:
+       * GetMonths - Return data grouped by months
+       * GetYears - Return data grouped by years
+   * Data Smoothing:
+       * Lowess - Use locally weighted scatterplot smoothing
+       * SMLowess - Use statsmodel version of LOWESS
+       * WeightedMovingAverage - Use a triangular window for moving avg
+       * SSA - Use Singular Spectrum Analysis
+   * Data Plotting:
+       * TempPlot - Temperature plot with optional annotations
+       * TempRangePlot - Plot multiple temperatures (e.g. min, max)
+       * ErrorPlot - Plot showing 1 and 2 std dev from trend line
+       * RecordsPlot - Show all records on one graph
+       * PrecipPlot - Show precipitation
+       * SnowPlot - Show snowfall
+       * HotDaysPlot - Show number of hot days per year
+   * Miscellaneous:
+       * CompareSmoothing - Show how Lowess and WMA compare for trends
 
    Requires Python 3 (tested on 3.6.1, Anaconda distribution)
 """
@@ -309,7 +312,7 @@ def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
 
     Parameters
     ----------
-    s : Pandas series
+    s : pandas.Series
         data to be averaged
     size : integer
         how wide a triangular window to use
@@ -323,7 +326,7 @@ def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
     winType : Function
         Window function that takes an integer (window size) and returns a list
         of weights to be applied to the data. The default is np.Hamming
-        (triangular). Other possible windows are
+        (triangular). Other possible windows are:
 
         * np.bartlett (triangular with endpoints of 0)
         * np.blackman (3 cosines creating taper)
@@ -338,6 +341,11 @@ def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
     Defaults to using a triangular (Hamming) window for weights, centered on
     each point. For points near the beginning or end of data, special
     processing is required that isn't in built-in functions.
+
+    Making const=True forces the first and last `size` points to be used at
+    the beginning and end, respectively. This ensures the line doesn't vary
+    more at the ends, but it tends to look like just the average of those
+    `size` points, even though the window is moving.
     """
     def SetLimits(i, hw):
         # i: current data location where window is centred
@@ -379,16 +387,64 @@ def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
     return a
 
-def SSA(s, m):
-    """
+def SSA(s, m, allRC=False):
+    """Implement Singular Spectrum Analysis for pandas Series
 
+    Parameters
+    ----------
+    s : pandas.Series
+        Input data, in series or single columns of a data frame. Any necessary
+        normalization (e.g. for anomolies from baseline) should be done.
+    m : int
+        Order or number of time lags to calculate over. A larger number gives
+        more smoothing in the first returned column.
+
+    **Optionals**
+
+    allRC : Boolean
+        Flag to return all reconstructed principles, rather than just the first
+        one. Most smoothing is done in first returned column, but other columns
+        may be useful to see periodicities.
+
+    Returns
+    -------
+    pandas.DataFrame containing the reconstructed principles (or just the first
+    one if allRC is True).
+
+    Notes
+    -----
+    Computes the first m principle components (PCs) using Singular Spectrum
+    Analysis. Most of the information is in the first reconstructed PC (RC),
+    so the function returns just the first RC by default. This RC will look
+    like smoothed data, and the amount of smoothing is determined by how large
+    `m` is. Note that end of data effects happen, making the first RC drop
+    towards 0 at beginning and end.
 
     Examples
     --------
-    y = [1.0135518, - 0.7113242, - 0.3906069, 1.565203, 0.0439317,
-         - 1.1656093, 1.0701692, 1.0825379, - 1.2239744, - 0.0321446,
-         1.1815997, - 1.4969448, - 0.7455299, 1.0973884, - 0.2188716,
-         - 1.0719573, 0.9922009, 0.4374216, - 1.6880219, 0.2609807]
+    from:
+    http://environnement.ens.fr/IMG/file/DavidPDF/SSA_beginners_guide_v9.pdf
+    ::
+
+        %precision 2
+        import pandas as pd
+        import numpy as np
+        import matplotlib as plt
+
+        y = [1.0135518, - 0.7113242, - 0.3906069, 1.565203, 0.0439317,
+             - 1.1656093, 1.0701692, 1.0825379, - 1.2239744, - 0.0321446,
+             1.1815997, - 1.4969448, - 0.7455299, 1.0973884, - 0.2188716,
+             - 1.0719573, 0.9922009, 0.4374216, - 1.6880219, 0.2609807]
+
+        rc = SSA(pd.Series(y), 4, allRC=True)
+        plt.plot(rc)
+        plt.show()
+
+        rc[0].values.flatten()
+
+        array([ 0.3 , -0.31, -0.33,  0.82, -0.06, -0.82,  0.54,  0.53, -0.88,
+                0.07,  0.83, -0.66, -0.36,  0.83, -0.18, -0.72,  0.63,  0.23,
+               -0.68,  0.24])
 
     """
     n = len(s)
@@ -404,14 +460,20 @@ def SSA(s, m):
     # get eigenvalues and eigenvectors
     lam, rho = np.linalg.eig(c)
     pc = ys.dot(rho)  # principle components
-    # reconstruct the components in proper frame
-    rc = np.zeros((n,m))
-    for j in mr:
-        z=np.zeros((n,m))
+    # reconstruct the components in proper time frame
+    if allRC:
+        rc = np.zeros((n, m))
+        for j in mr:
+            z = np.zeros((n, m))
+            for i in mr:  # make time shifted principle component matrix
+                z[i:,i] = pc[:n-i, j]
+            rc[:,j] = z.dot(rho[:, j]) / m
+    else:  # only reconstruct first principle component
+        z = np.zeros((n, m))
         for i in mr:  # make time shifted principle component matrix
-            z[i:,i] = pc[:n-i,j]
-        rc[:,j] = z.dot(rho[:,j])/m
-    return rc
+            z[i:,i] = pc[:n-i, 0]
+        rc = z.dot(rho[:, 0]) / m
+    return pd.DataFrame(rc, index=s.index)
 
 def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
              cols=[4, 6, 8],
@@ -505,8 +567,9 @@ def TempRangePlot(df, col=[4, 6, 8], size=15, change=True, fignum=2, city=0):
     return
 
 def CompareSmoothing(df, cols=[8],
-                     size=15,
-                     frac=2./3., pts=None, itn=3, order=2,
+                     size=31,
+                     frac=2./3., pts=31, itn=3, order=2,
+                     lags=31,
                      fignum=9, city=0):
     """Comparison between moving weighted average and lowess smoothing.
 
@@ -516,6 +579,7 @@ def CompareSmoothing(df, cols=[8],
     frac:  fraction of data to use for lowess window
     itn:   number of iterations to use for lowess
     order: order of the lowess polynomial
+    lags:     number of time lags to use for SSA
     """
     yf = GetYears(df, cols)
     yf = yf - yf.iloc[:30].mean()
@@ -543,6 +607,9 @@ def CompareSmoothing(df, cols=[8],
     lp = Lowess(y, f=frac, pts=pts, itn=itn, order=order)
     plt.plot(lp, 'r-', alpha=0.5, lw=2, label='Lowess (polynomial)')
 
+    ss = SSA(y, lags)
+    plt.plot(ss, 'k-', alpha=0.3, lw=2, label='SSA')
+
     #so = SMLowess(y, f=frac, pts=pts, iter=itn)
     #plt.plot(so, 'c-', alpha=0.5, lw=2, label='SM Lowess')
 
@@ -561,8 +628,10 @@ def CompareSmoothing(df, cols=[8],
            "  Size: {1}\n"
            "  Iterations: {2}\n"
            "  Polynomial Order: {3}\n"
+           "Singular Spectrum Analysis:\n"
+           "  Lags: {4}\n"
            "Chart: @Dan613")
-    box = boxt.format(size, p, itn, order)
+    box = boxt.format(size, p, itn, order, lags)
     plt.text(1987, -1.9, box)
     plt.show()
     return
