@@ -415,11 +415,11 @@ def SSA(s, m, allRC=False):
     Notes
     -----
     Computes the first m principle components (PCs) using Singular Spectrum
-    Analysis. Most of the information is in the first reconstructed PC (RC),
-    so the function returns just the first RC by default. This RC will look
-    like smoothed data, and the amount of smoothing is determined by how large
-    `m` is. Note that end of data effects happen, making the first RC drop
-    towards 0 at beginning and end.
+    Analysis. Most of the trend information is in the first reconstructed PC
+    (RC), so the function returns just the first RC by default. This RC will
+    look like smoothed data, and the amount of smoothing is determined by how
+    large `m` is. Note that end of data effects happen, making the first RC
+    drop towards 0 at beginning and end.
 
     Examples
     --------
