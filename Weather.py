@@ -476,31 +476,56 @@ def SSA(s, m, allRC=False):
         rc = z.dot(rho[:, 0]) / m
     return pd.DataFrame(rc, index=s.index)
 
-def StackPlot(df, cols=2, fignum=20):
-    """Create a series of plots above each other.
+def StackPlot(df, cols=2, title='', fignum=20):
+    """Create a series of plots above each other, sharing x-axis labels.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing data to be plotted in separate columns. Column
+        names will be used for labels.
+
+    **Optionals:**
+
+    cols : int
+        Number of columns per figure to use.
+    title : String
+        Name to use on each figure. Page numbers are added.
+    fignum : int
+        Figure to start at. Useful if you want to keep older plots available.
+
+    Notes
+    -----
+    Useful for plotting the SSA reconstructed principles to see which might be
+    important.
     """
     rows = 4
     n = len(df.columns)
     if n <= rows: cols=1
     plots = rows * cols
     ax = list(range(plots))
-    pages = int(n / plots)
+    pages = int(np.ceil(n / plots))
+    title = title + ' Page {}'
     for page in range(pages):
-        fig = plt.figure(fignum+page, figsize=(10,12))
+        fig = plt.figure(fignum+page, figsize=(14,10))
         fig.clear()
-        plt.subplots_adjust(hspace=0.001)
-        for i in range(plots):
+        fig.suptitle(title.format(page+1), fontsize=16, y=0.95)
+        plt.subplots_adjust(hspace=0.001, wspace=0.15)
+        end = min(plots, n - page * plots)
+        for i in range(end):
             loc = page * plots + i
-            if loc >= n: break
-            r = int(i / rows)
-            ax[i] = plt.subplot(rows, cols, i+1)
-            if r < rows:
+            r = int(i/plots)
+            if r==0:
+                ax[i] = plt.subplot(rows, cols, i+1)
+            else:
+                ax[i] = plt.subplot(rows, cols, i+1, sharex=ax[i%cols])
+            if i < end-cols:  # hide ticks on all but last cols plots
                 xt = ax[i].get_xticklabels()
                 plt.setp(xt, visible=False)
             col = df.columns[loc]
             ax[i].plot(df[col], label=col)
             plt.legend(loc='upper left')
-        plt.show()
+    plt.show()
 
 
 
