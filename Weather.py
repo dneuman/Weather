@@ -37,11 +37,12 @@ import time
 import glob
 import matplotlib.pyplot as plt
 import pandas as pd
-pd.options.display.float_format = '{:.1f}'.format  # change print format
 import numpy as np
 import datetime as dt
 import statsmodels.api as sm
 
+pd.options.display.float_format = '{:.1f}'.format  # change print format
+plt.style.use('ggplot')
 
 basepath = '/Users/Dan/Documents/Weather/Stations/'
 stationID = [4333]  # Ottawa
@@ -475,6 +476,34 @@ def SSA(s, m, allRC=False):
         rc = z.dot(rho[:, 0]) / m
     return pd.DataFrame(rc, index=s.index)
 
+def StackPlot(df, cols=2, fignum=20):
+    """Create a series of plots above each other.
+    """
+    rows = 4
+    n = len(df.columns)
+    if n <= rows: cols=1
+    plots = rows * cols
+    ax = list(range(plots))
+    pages = int(n / plots)
+    for page in range(pages):
+        fig = plt.figure(fignum+page, figsize=(10,12))
+        fig.clear()
+        plt.subplots_adjust(hspace=0.001)
+        for i in range(plots):
+            loc = page * plots + i
+            if loc >= n: break
+            r = int(i / rows)
+            ax[i] = plt.subplot(rows, cols, i+1)
+            if r < rows:
+                xt = ax[i].get_xticklabels()
+                plt.setp(xt, visible=False)
+            col = df.columns[loc]
+            ax[i].plot(df[col], label=col)
+            plt.legend(loc='upper left')
+        plt.show()
+
+
+
 def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
              cols=[4, 6, 8],
              annotatePDO=False):
@@ -587,7 +616,6 @@ def CompareSmoothing(df, cols=[8],
     y = yf[col]
     fig = plt.figure(fignum)
     fig.clear()
-    plt.style.use('ggplot')
     plt.plot(y, 'ko-', lw=1, alpha=0.2,
              label=(stationName[city]+' '+col))
     if pts==None:
@@ -651,7 +679,6 @@ def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
     std = err.mean()**0.5
     fig = plt.figure(fignum)
     fig.clear()
-    plt.style.use('ggplot')
     plt.plot(yf[col], 'ko-', lw=1, alpha=0.2,
              label=(stationName[city]+' '+col))
     plt.plot(ma, 'r-', alpha=0.5, lw=2, label='Weighted Moving Average')
