@@ -24,6 +24,13 @@ I'm investigating smoothing techniques such as adding polynomial regression to l
 
 **Update**: Polynomial regression has been added to lowess, but it is less useful than I expected. Higher orders allow more peaks and valleys, so there is actually *less* smoothing of the data. This could be useful if you have an idea of the shape of the data (order = # of peaks and values + 1) and use a large window. I tried removing the weighting function, but this added lots of discontinuities.
 
+**Update**: (24Sep17) Singular Spectral Analysis (SSA) added. This was also less useful than expected. The problem is, as usual, dealing with smoothing at ends of data. SSA was worse than other methods, since it seemed to act like data is padded with 0s, which makes the trend line drop to 0 at beginning and end. Theoretically, I can use SSA to predict future points, but for the temperature example I used this is dominated by the trend (1st) reconsistution, which is what drops to 0. I also added a StackedPlot function to make it easier to see all the returned reconsituted components.
+
+     df = LoadDF()
+     yf = GetYear(df, cols=[8])
+     rc = SSA(yf, 32, allRC=True)
+     StackPlot(rc, cols=4)
+
 ## Upcoming Changes
 * I will eventually move the smoothing functions into their own file to make them useful elsewhere.
 * The initializing weather stations and cities will be put into a text file loaded at the beginning to add more flexibility. Change a file, rather than changing the source code. I may do the same with the basepath variable, or determine from code location.
