@@ -509,8 +509,10 @@ def StackPlot(df, cols=2, title='', fignum=20):
     for page in range(pages):
         fig = plt.figure(fignum+page, figsize=(14,10))
         fig.clear()
-        fig.suptitle(title.format(page+1), fontsize=16, y=0.95)
-        plt.subplots_adjust(hspace=0.001, wspace=0.15)
+        fig.suptitle(title.format(page+1), fontsize=16, y=0.98)
+        plt.subplots_adjust(hspace=0.001, wspace=0.1,
+                            left=0.05, right=0.95,
+                            bottom=0.05, top=0.95)
         end = min(plots, n - page * plots)
         for i in range(end):
             loc = page * plots + i
@@ -641,7 +643,7 @@ def CompareSmoothing(df, cols=[8],
     y = yf[col]
     fig = plt.figure(fignum)
     fig.clear()
-    plt.plot(y, 'ko-', lw=1, alpha=0.2,
+    plt.plot(y, 'ko-', lw=1, alpha=0.15,
              label=(stationName[city]+' '+col))
     if pts==None:
         p = np.ceil(frac * len(y))
@@ -658,15 +660,15 @@ def CompareSmoothing(df, cols=[8],
     plt.plot(lo, 'g-', alpha=0.5, lw=2, label='Lowess (linear)')
 
     lp = Lowess(y, f=frac, pts=pts, itn=itn, order=order)
-    plt.plot(lp, 'r-', alpha=0.5, lw=2, label='Lowess (polynomial)')
+    plt.plot(lp, 'g.', alpha=0.5, lw=2, label='Lowess (polynomial)')
 
     ss = SSA(y, lags)
-    plt.plot(ss, 'k-', alpha=0.3, lw=2, label='SSA')
+    plt.plot(ss, 'r-', alpha=0.5, lw=2, label='SSA')
 
     #so = SMLowess(y, f=frac, pts=pts, iter=itn)
     #plt.plot(so, 'c-', alpha=0.5, lw=2, label='SM Lowess')
 
-    plt.title('Comparison between Weighted Moving Average and Lowess')
+    plt.title('Comparison between Weighted Moving Average, Lowess, and SSA')
     plt.legend(loc='upper left')
     plt.ylabel('Temperature Change from Baseline (°C)')
     # Annotate chart
