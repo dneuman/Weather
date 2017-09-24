@@ -43,6 +43,10 @@ import statsmodels.api as sm
 
 pd.options.display.float_format = '{:.1f}'.format  # change print format
 plt.style.use('ggplot')
+# http://matplotlib.org/users/style_sheets.html
+# matplotlib.style.available shows available styles
+# matplotlib.style.library is a dictionary of available styles
+# user styles can be placed in ~/.matplotlib/
 
 basepath = '/Users/Dan/Documents/Weather/Stations/'
 stationID = [4333]  # Ottawa
@@ -173,10 +177,6 @@ def LoadDF(city=0):
                      parse_dates=True)
     return df
 
-# http://matplotlib.org/users/style_sheets.html
-# matplotlib.style.available shows available styles
-# matplotlib.style.library is a dictionary of available styles
-# user styles can be placed in ~/.matplotlib/
 
 def GetMonths(df, col, func=np.mean):
     """Convert daily data to monthly data
@@ -548,7 +548,6 @@ def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
         cols = cols[0:-2]  # remove last column (mean)
     fig = plt.figure(fignum)
     fig.clear()  # May have been used before
-    plt.style.use('ggplot')
     for ci, col in enumerate(cols):
         s = yr[col]
         a = WeightedMovingAverage(s, size)
@@ -611,7 +610,6 @@ def TempRangePlot(df, col=[4, 6, 8], size=15, change=True, fignum=2, city=0):
         lo = lo - yr.iloc[:30, 2].mean()
     fig = plt.figure(fignum)
     fig.clear()
-    plt.style.use('ggplot')
     plt.plot(hi, 'r-', alpha=0.5)
     plt.plot(mn, 'k-', alpha=0.5)
     plt.plot(lo, 'c-', alpha=0.5)
