@@ -307,8 +307,25 @@ def SMLowess(data, f=2./3., pts=None, itn=3):
     est = sm.nonparametric.lowess(y, x, frac=f, it=itn)
     return pd.Series(est[:,1], index=est[:,0], name='Trend')
 
+def Triangle(size, clip=1.0):
+    """Return a triangle weighting window, with optional clipping.
 
-def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
+    Paramters
+    ---------
+    size : int
+        Length of the returned weights
+
+    **Optionals**
+
+    clip : float
+        Any weight above `clip` will be forced to `clip`.
+    """
+    w = np.bartlett(size+2)
+    w = w[1:-1]  # remove zeros at endpoints
+    w = np.array([min(clip, i) for i in w])
+    return (w / max(w))
+
+def WeightedMovingAverage(s, size, pad=True, winType=Triangle, wts=None):
     """Apply a weighted moving average on the supplied series.
 
     Parameters
@@ -320,70 +337,83 @@ def WeightedMovingAverage(s, size, const=False, winType=np.hamming):
 
     **Optionals**
 
-    const : Boolean
-        flag determining whether to keep number of data points used
-        constant at beginning and end. If True, window is increased, but
-        clipped to `size` points centred on current point.
+    pad : Boolean
+        flag determining whether to pad beginning and end of data with a
+        weighted average of the last `size` points. This provides better
+        smoothing at the beginning and end of the line, but it tends to have
+        zero slope.
     winType : Function
         Window function that takes an integer (window size) and returns a list
-        of weights to be applied to the data. The default is np.Hamming
+        of weights to be applied to the data. The default is np.hamming
         (triangular). Other possible windows are:
 
         * np.bartlett (triangular with endpoints of 0)
         * np.blackman (3 cosines creating taper)
-        * np.hanning (weighted cosine)
-
+        * np.hamming (weighted cosine)
+        * np.hanning (weighted cosine with endpoints of 0)
+    wts : list
+        List of weights to use. `size` becomes the length of wts. Use this
+        option to provide a custom weighting function. The length of wts
+        should be odd, but this is not enforced.
     Returns
     -------
     Pandas Series containing smoothed data
 
     Notes
     -----
-    Defaults to using a triangular (Hamming) window for weights, centered on
+    Defaults to using a triangular window for weights, centered on
     each point. For points near the beginning or end of data, special
     processing is required that isn't in built-in functions.
-
-    Making const=True forces the first and last `size` points to be used at
-    the beginning and end, respectively. This ensures the line doesn't vary
-    more at the ends, but it tends to look like just the average of those
-    `size` points, even though the window is moving.
     """
     def SetLimits(i, hw):
         # i: current data location where window is centred
         # hw: half window width
         ds = max(0, (i-hw))         # data start
-        de = min(dataLen-1, (i+hw)) # data end
+        de = min(n-1, (i+hw)) # data end
         ws = hw - (i - ds)          # window start
         we = hw + (de - i)          # window end
         return ds, de, ws, we
 
-    size += (size+1) % 2  # make odd
-    window = winType(size)
-    window /= window.sum()  # normalize window
+    if type(wts) == type(None):
+        size += (size+1) % 2  # make odd
+        window = winType(size)
+        window /= window.sum()  # normalize window
+    else:
+        window = wts / wts.sum()
+        size = len(wts)
     a = pd.Series(np.convolve(s, window, mode='same'),
                   index=s.index,
                   name=s.name)
-    dataLen = len(a)
-    hw = int((size - 1)/2) # half window width
+    n = len(a)
+    hw = int(size / 2) # half window width
     # convolve has boundary effects when there is no overlap with the window
     # Begining and end of 'a' must be adjusted to compensate.
     # np.average() effectively scales the weights for the different sizes.
-    if const: # keep data points used the same, but increase window size
-        ds = 0
-        de = size
-        for i in range(hw+1):  # fix the start
-            window = np.hamming(2*(de-i)+1)
-            a.iloc[i] = np.average(s.iloc[ds:de], weights=window[-size:])
-        ds = dataLen-size-1
-        de = dataLen-1
-        for i in range(dataLen-hw-1, dataLen):  # fix the end
-            window = winType(2*(i-ds)+1)
-            a.iloc[i] = np.average(s.iloc[ds:de], weights=window[:size])
-    else: # keep window size the same, but follow current point
+    """
+    0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+    ws                   p                   we
+
+    """
+    if pad: # pad the data with an weighted average value
+        # create padded beginning
+        avg = np.average(s.iloc[:hw], weights=window[-hw:])
+        padded = np.ones(size+hw) * avg
+        for i in range(size):
+            padded[i+hw] = s.iloc[i]
+        for i in range(hw):
+            a.iloc[i] = np.average(padded[i:i+size], weights=window)
+        # create padded end
+        avg = np.average(s.iloc[-hw:], weights=window[:hw])
+        padded = np.ones(size+hw) * avg
+        for i in range(size):
+            padded[i] = s.iloc[n-size+i]
+        for i in range(hw):
+            a.iloc[i+n-hw] = np.average(padded[i:i+size], weights=window)
+    else: # clip window as available data decreases
         for i in range(hw+1):  # fix the start
             (ds, de, ws, we) = SetLimits(i, hw)
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
-        for i in range(dataLen-hw-1, dataLen):  # fix the end
+        for i in range(n-hw-1, n):  # fix the end
             (ds, de, ws, we) = SetLimits(i, hw)
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
     return a
@@ -451,7 +481,8 @@ def SSA(s, m, allRC=False):
     n = len(s)
     y = np.array(s.values)
     mr = range(m)
-    ys = np.zeros((n,m))  # time shifted y-values
+    avg = y[int(n*0.9):].mean()  # use last 10% average to pad
+    ys = np.ones((n,m)) * avg    # time shifted y-values
     for i in mr:
         ys[:n-i,i] = y[i:]
     # get autocorrelation at first `order` time lags
@@ -620,6 +651,45 @@ def TempRangePlot(df, col=[4, 6, 8], size=15, change=True, fignum=2, city=0):
     plt.show()
     return
 
+def CompareWeighting(df, cols=[8], size=31, fignum=8, city=0):
+    """Compare various weighting windows on real data.
+    """
+    yf = GetYears(df, cols)
+    yf = yf - yf.iloc[:30].mean()
+    col = yf.columns[0]
+    y = yf[col]
+    fig = plt.figure(fignum)
+    fig.clear()
+    plt.plot(y, 'ko-', lw=1, alpha=0.15,
+             label=(stationName[city]+' '+col))
+
+    ma = WeightedMovingAverage(y, size)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Triangle')
+
+    w = Triangle(size, clip=0.8)
+    ma = WeightedMovingAverage(y, size, wts=w)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Clipped Triangle (0.5)')
+
+    ma = WeightedMovingAverage(y, size, winType=np.hamming)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Hamming')
+
+    ma = WeightedMovingAverage(y, size, winType=np.hanning)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Hanning')
+
+    ma = WeightedMovingAverage(y, size, winType=np.blackman)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Blackman')
+
+    plt.title('Comparison of Window Types for Moving Average')
+    plt.legend(loc='upper left')
+    plt.ylabel('Temperature Change from Baseline (°C)')
+    # Annotate chart
+    bx = [yf.index[0], yf.index[0], yf.index[30], yf.index[30]]
+    by = [-.3, -.4, -.4, -.3]
+    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
+    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
+
+    plt.show()
+
 def CompareSmoothing(df, cols=[8],
                      size=31,
                      frac=2./3., pts=31, itn=3, order=2,
@@ -660,8 +730,11 @@ def CompareSmoothing(df, cols=[8],
     lp = Lowess(y, f=frac, pts=pts, itn=itn, order=order)
     plt.plot(lp, 'g.', alpha=0.5, lw=2, label='Lowess (polynomial)')
 
-    ss = SSA(y, lags)
-    plt.plot(ss, 'r-', alpha=0.5, lw=2, label='SSA')
+    ss = SSA(y, lags, allRC=True)
+    plt.plot(ss.iloc[:,0], 'r-', alpha=0.5, lw=2, label='SSA')
+
+    ss2 = ss.iloc[:, 0:2].sum(axis=1)
+    plt.plot(ss2, 'r.', alpha=0.5, lw=2, label='SSA, 2 components')
 
     #so = SMLowess(y, f=frac, pts=pts, iter=itn)
     #plt.plot(so, 'c-', alpha=0.5, lw=2, label='SM Lowess')
