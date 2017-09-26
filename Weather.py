@@ -438,7 +438,7 @@ def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
     return a
 
-def SSA(s, m, allRC=False):
+def SSA(s, m, rtnRC=1, pad=True):
     """Implement Singular Spectrum Analysis for pandas Series
 
     Parameters
@@ -452,10 +452,13 @@ def SSA(s, m, allRC=False):
 
     **Optionals**
 
-    allRC : Boolean
-        Flag to return all reconstructed principles, rather than just the first
-        one. Most smoothing is done in first returned column, but other columns
-        may be useful to see periodicities.
+    rtnRC : int
+        Number of reconstructed principles to return. Set to None to get all
+        of them. Most smoothing is done in first returned column, but other
+        columns may be useful to see periodicities.
+    pad : Boolean
+        Flad to pad data and principle components instead of using zeros.
+        Reflected data is used, mirrored around the end point near the zeros.
 
     Returns
     -------
@@ -468,8 +471,8 @@ def SSA(s, m, allRC=False):
     Analysis. Most of the trend information is in the first reconstructed PC
     (RC), so the function returns just the first RC by default. This RC will
     look like smoothed data, and the amount of smoothing is determined by how
-    large `m` is. Note that end of data effects happen, making the first RC
-    drop towards 0 at beginning and end.
+    large `m` is. Note that padding is added to prevent a drop towards 0 at
+    beginning and end.
 
     Examples
     --------
@@ -487,7 +490,7 @@ def SSA(s, m, allRC=False):
              1.1815997, - 1.4969448, - 0.7455299, 1.0973884, - 0.2188716,
              - 1.0719573, 0.9922009, 0.4374216, - 1.6880219, 0.2609807]
 
-        rc = SSA(pd.Series(y), 4, allRC=True)
+        rc = SSA(pd.Series(y), 4, allRC=None, pad=False)
         plt.plot(rc)
         plt.show()
 
@@ -505,7 +508,7 @@ def SSA(s, m, allRC=False):
     ys = np.ones((n,m)) * avg    # time shifted y-values
     for i in mr:
         ys[:n-i,i] = y[i:]
-        ys[n-i:,i] = y[n-2:n-i-2:-1] # reflect end data
+        if pad: ys[n-i:,i] = y[n-2:n-i-2:-1] # reflect end data
     # get autocorrelation at first `order` time lags
     cor = np.correlate(y, y, mode='full')[n-1:n-1+m]/n
     # make toeplitz matrix (diagonal, symmetric)
@@ -514,18 +517,17 @@ def SSA(s, m, allRC=False):
     lam, rho = np.linalg.eig(c)
     pc = ys.dot(rho)  # principle components
     # reconstruct the components in proper time frame
-    if allRC:
-        rc = np.zeros((n, m))
-        for j in mr:
-            z = np.zeros((n, m))
-            for i in mr:  # make time shifted principle component matrix
-                z[i:,i] = pc[:n-i, j]
-            rc[:,j] = z.dot(rho[:, j]) / m
-    else:  # only reconstruct first principle component
+    if rtnRC is None:
+        desired = m
+    else:
+        desired = min(m, rtnRC)
+    rc = np.zeros((n, desired))
+    for j in range(desired):
         z = np.zeros((n, m))
         for i in mr:  # make time shifted principle component matrix
-            z[i:,i] = pc[:n-i, 0]
-        rc = z.dot(rho[:, 0]) / m
+            z[i:,i] = pc[:n-i, j]
+            if pad: z[:i,i] = pc[i:0:-1, j]  # reflect beginning data
+        rc[:,j] = z.dot(rho[:, j]) / m
     return pd.DataFrame(rc, index=s.index)
 
 def StackPlot(df, cols=2, title='', fignum=20):
@@ -751,10 +753,10 @@ def CompareSmoothing(df, cols=[8],
     lp = Lowess(y, f=frac, pts=pts, itn=itn, order=order)
     plt.plot(lp, 'g.', alpha=0.5, lw=2, label='Lowess (polynomial)')
 
-    ss = SSA(y, lags, allRC=True)
+    ss = SSA(y, lags, rtnRC=2)
     plt.plot(ss.iloc[:,0], 'r-', alpha=0.5, lw=2, label='SSA')
 
-    ss2 = ss.iloc[:, 0:2].sum(axis=1)
+    ss2 = ss.sum(axis=1)
     plt.plot(ss2, 'r.', alpha=0.5, lw=2, label='SSA, 2 components')
 
     #so = SMLowess(y, f=frac, pts=pts, iter=itn)
@@ -779,7 +781,7 @@ def CompareSmoothing(df, cols=[8],
            "  Lags: {4}\n"
            "Chart: @Dan613")
     box = boxt.format(size, p, itn, order, lags)
-    plt.text(1987, -1.9, box)
+    plt.text(1987, np.floor(y.min())+.05, box)
     plt.show()
     return
 
