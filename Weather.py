@@ -325,7 +325,12 @@ def Triangle(size, clip=1.0):
     w = np.array([min(clip, i) for i in w])
     return (w / max(w))
 
-def WeightedMovingAverage(s, size, pad=True, winType=Triangle, wts=None):
+def Hanning(size):
+    w = np.hanning(size+2)
+    w = np.array(w[1:-1])  # remove zeros at endpoints
+    return (w / max(w))
+
+def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
     """Apply a weighted moving average on the supplied series.
 
     Parameters
@@ -381,10 +386,7 @@ def WeightedMovingAverage(s, size, pad=True, winType=Triangle, wts=None):
     else:
         window = wts / wts.sum()
         size = len(wts)
-    a = pd.Series(np.convolve(s, window, mode='same'),
-                  index=s.index,
-                  name=s.name)
-    n = len(a)
+    n = len(s)
     hw = int(size / 2) # half window width
     # convolve has boundary effects when there is no overlap with the window
     # Begining and end of 'a' must be adjusted to compensate.
@@ -396,6 +398,20 @@ def WeightedMovingAverage(s, size, pad=True, winType=Triangle, wts=None):
     """
     if pad: # pad the data with an weighted average value
         # create padded beginning
+        y = np.zeros(n+2*hw)
+        #avg = np.average(s.iloc[:hw], weights=window[-hw:])
+        for i in range(hw):
+            y[i] = s.iloc[hw-i]
+        #avg = np.average(s.iloc[-hw:], weights=window[:hw])
+        for i in range(hw):
+            y[i+n+hw] = s.iloc[n-i-1]
+        for i in range(n):
+            y[i+hw] = s.iloc[i]
+        yc = np.convolve(y, window, mode='same')
+        a = pd.Series(yc[hw:n+hw],
+                      index=s.index,
+                      name=s.name)
+        """
         avg = np.average(s.iloc[:hw], weights=window[-hw:])
         padded = np.ones(size+hw) * avg
         for i in range(size):
@@ -409,7 +425,11 @@ def WeightedMovingAverage(s, size, pad=True, winType=Triangle, wts=None):
             padded[i] = s.iloc[n-size+i]
         for i in range(hw):
             a.iloc[i+n-hw] = np.average(padded[i:i+size], weights=window)
+        """
     else: # clip window as available data decreases
+        a = pd.Series(np.convolve(s, window, mode='same'),
+                      index=s.index,
+                      name=s.name)
         for i in range(hw+1):  # fix the start
             (ds, de, ws, we) = SetLimits(i, hw)
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
@@ -485,6 +505,7 @@ def SSA(s, m, allRC=False):
     ys = np.ones((n,m)) * avg    # time shifted y-values
     for i in mr:
         ys[:n-i,i] = y[i:]
+        ys[n-i:,i] = y[n-2:n-i-2:-1] # reflect end data
     # get autocorrelation at first `order` time lags
     cor = np.correlate(y, y, mode='full')[n-1:n-1+m]/n
     # make toeplitz matrix (diagonal, symmetric)
@@ -663,7 +684,7 @@ def CompareWeighting(df, cols=[8], size=31, fignum=8, city=0):
     plt.plot(y, 'ko-', lw=1, alpha=0.15,
              label=(stationName[city]+' '+col))
 
-    ma = WeightedMovingAverage(y, size)
+    ma = WeightedMovingAverage(y, size, winType=Triangle)
     plt.plot(ma, '-', alpha=0.8, lw=1, label='Triangle')
 
     w = Triangle(size, clip=0.8)
@@ -673,7 +694,7 @@ def CompareWeighting(df, cols=[8], size=31, fignum=8, city=0):
     ma = WeightedMovingAverage(y, size, winType=np.hamming)
     plt.plot(ma, '-', alpha=0.8, lw=1, label='Hamming')
 
-    ma = WeightedMovingAverage(y, size, winType=np.hanning)
+    ma = WeightedMovingAverage(y, size)
     plt.plot(ma, '-', alpha=0.8, lw=1, label='Hanning')
 
     ma = WeightedMovingAverage(y, size, winType=np.blackman)
