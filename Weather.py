@@ -349,8 +349,8 @@ def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
         zero slope.
     winType : Function
         Window function that takes an integer (window size) and returns a list
-        of weights to be applied to the data. The default is np.hamming
-        (triangular). Other possible windows are:
+        of weights to be applied to the data. The default is Hanning, a
+        weighted cosine with non-zero endpoints. Other possible windows are:
 
         * np.bartlett (triangular with endpoints of 0)
         * np.blackman (3 cosines creating taper)
@@ -391,18 +391,11 @@ def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
     # convolve has boundary effects when there is no overlap with the window
     # Begining and end of 'a' must be adjusted to compensate.
     # np.average() effectively scales the weights for the different sizes.
-    """
-    0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
-    ws                   p                   we
-
-    """
-    if pad: # pad the data with an weighted average value
+    if pad: # pad the data with reflected values
         # create padded beginning
         y = np.zeros(n+2*hw)
-        #avg = np.average(s.iloc[:hw], weights=window[-hw:])
         for i in range(hw):
             y[i] = s.iloc[hw-i]
-        #avg = np.average(s.iloc[-hw:], weights=window[:hw])
         for i in range(hw):
             y[i+n+hw] = s.iloc[n-i-1]
         for i in range(n):
@@ -411,21 +404,6 @@ def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
         a = pd.Series(yc[hw:n+hw],
                       index=s.index,
                       name=s.name)
-        """
-        avg = np.average(s.iloc[:hw], weights=window[-hw:])
-        padded = np.ones(size+hw) * avg
-        for i in range(size):
-            padded[i+hw] = s.iloc[i]
-        for i in range(hw):
-            a.iloc[i] = np.average(padded[i:i+size], weights=window)
-        # create padded end
-        avg = np.average(s.iloc[-hw:], weights=window[:hw])
-        padded = np.ones(size+hw) * avg
-        for i in range(size):
-            padded[i] = s.iloc[n-size+i]
-        for i in range(hw):
-            a.iloc[i+n-hw] = np.average(padded[i:i+size], weights=window)
-        """
     else: # clip window as available data decreases
         a = pd.Series(np.convolve(s, window, mode='same'),
                       index=s.index,
