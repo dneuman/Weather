@@ -218,7 +218,7 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
                         aggfunc=func)
     return yr
 
-def Lowess(data, f=2./3., pts=None, itn=3, order=1):
+def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     """Fits a nonparametric regression curve to a scatterplot.
 
     Parameters
@@ -242,6 +242,10 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
         The order of the polynomial used for fitting. Defaults to 1
         (straight line). Values < 1 are made 1. Larger values should be
         chosen based on shape of data (# of peaks and valleys + 1)
+    pad : Boolean
+        If True, will pad the data and the beginning and end by the amount
+        of data used for smoothing (f*n or pts). This may provide better
+        tracking of data at the ends.
 
     Returns
     -------
@@ -253,11 +257,6 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
     #            converted to Pandas series and extended to polynomials
     # License: BSD (3-clause)
 
-    x = np.array(data.index, dtype=float)
-    # condition x-values to be between 0 and 1 to reduce errors in linalg
-    x = x - x.min()
-    x = x / x.max()
-    y = data.values
     n = len(data)
     if pts is None:
         f = np.min([f, 1.0])
@@ -266,6 +265,31 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
         r = int(np.min([pts, n]))
     r = min([r, n-1])
     order = max([1, order])
+    if pad:
+        tx = np.array(data.index, dtype=float)
+        ty = data.values
+        x = np.zeros(len(data)+2*r)
+        y = np.zeros(len(data)+2*r)
+        # pad data as a reflection of original data. eg use indexes:
+        # 2, 1, 0, 1, 2, 3, 4, 5 and
+        # n-3, n-2, n-1, n-2, n-3, n-4
+        # x values keep the distances between them but go backwards at end and
+        # forward at the end. y values are not changed.
+        for i in range(r):  # pad beginning
+            x[i] = tx[0] - (tx[r-i] - tx[0])
+            y[i] = ty[r-i]
+        for i in range(n):  # add actual data
+            x[i+r] = tx[i]
+            y[i+r] = ty[i]
+        for i in range(r):  # pad end
+            x[i+r+n] = tx[n-1] + (tx[n-1] - tx[n-2-i])
+            y[i+r+n] = ty[n-2-i]
+    else:
+        x = np.array(data.index, dtype=float)
+        y = data.values
+    # condition x-values to be between 0 and 1 to reduce errors in linalg
+    x = x - x.min()
+    x = x / x.max()
     # Create matrix of 1, x, x**2, x**3, etc, by row
     xm = np.array([x**j for j in range(order+1)])
     # Create weight matrix, one column per data point
@@ -288,7 +312,10 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1):
         s = np.median(np.abs(residuals))
         delta = np.clip(residuals / (6.0 * s), -1, 1)
         delta = (1 - delta ** 2) ** 2
-    return pd.Series(yEst, index=data.index, name='Trend')
+    if pad:
+        return pd.Series(yEst[r:n+r], index=x[r:n+r], name='Trend')
+    else:
+        return pd.Series(yEst, index=data.index, name='Trend')
 
 def SMLowess(data, f=2./3., pts=None, itn=3):
     """Return Statsmodels lowess smoothing as a series.
