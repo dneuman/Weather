@@ -216,6 +216,20 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
     yr = df.pivot_table(values=list(labels),
                         index=['Year'],
                         aggfunc=func)
+    cyr = df.Year[-1]  # get current year
+    lyr = cyr-1
+    dfc = df.loc[lambda df: df.Year == cyr]
+    c = dfc.count()
+
+    dfl = df.loc[lambda df: df.Year == lyr]
+    dfl = dfl.iloc[:c[labels[0]]] # make number of days same as current year
+    pl = dfl.pivot_table(values=list(labels),
+                        index=['Year'],
+                        aggfunc=func)
+    # adjust current year by last year's change from current day to year end
+    for i in range(len(labels)):
+        yr.iloc[-1, i] = (yr.iloc[-2, i] - pl.iloc[0, i]) + yr.iloc[-1, i]
+
     return yr
 
 def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
