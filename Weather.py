@@ -770,7 +770,8 @@ def CompareSmoothing(df, cols=[8],
     #so = SMLowess(y, f=frac, pts=pts, iter=itn)
     #plt.plot(so, 'c-', alpha=0.5, lw=2, label='SM Lowess')
 
-    plt.title('Comparison between Weighted Moving Average, Lowess, and SSA')
+    plt.title('Comparison between Weighted Moving Average, Lowess, and SSA'
+              ' - Padded')
     plt.legend(loc='upper left')
     plt.ylabel('Temperature Change from Baseline (°C)')
     # Annotate chart
