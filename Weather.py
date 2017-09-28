@@ -255,6 +255,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     #            original
     #          Dan Neuman <https://github.com/dneuman>
     #            converted to Pandas series and extended to polynomials
+    #            and added padding option.
     # License: BSD (3-clause)
 
     n = len(data)
@@ -284,6 +285,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
         for i in range(r):  # pad end
             x[i+r+n] = tx[n-1] + (tx[n-1] - tx[n-2-i])
             y[i+r+n] = ty[n-2-i]
+        n = len(y)
     else:
         x = np.array(data.index, dtype=float)
         y = data.values
@@ -313,7 +315,8 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
         delta = np.clip(residuals / (6.0 * s), -1, 1)
         delta = (1 - delta ** 2) ** 2
     if pad:
-        return pd.Series(yEst[r:n+r], index=x[r:n+r], name='Trend')
+        n = len(data)
+        return pd.Series(yEst[r:n+r], index=data.index, name='Trend')
     else:
         return pd.Series(yEst, index=data.index, name='Trend')
 
@@ -776,7 +779,7 @@ def CompareSmoothing(df, cols=[8],
     plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
     plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
     boxt = ("Moving Average:\n"
-           "  Weights: Triangular (Hamming)\n"
+           "  Weights: Cosine (Hanning)\n"
            "  Size: {0}\n"
            "Lowess:\n"
            "  Size: {1}\n"
