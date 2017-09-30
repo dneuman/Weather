@@ -16,10 +16,12 @@
        * GetYears - Return data grouped by years
    * Data Smoothing:
        * Lowess - Use locally weighted scatterplot smoothing
-       * SMLowess - Use statsmodel version of LOWESS
        * WeightedMovingAverage - Use a triangular window for moving avg
        * SSA - Use Singular Spectrum Analysis
+       * Triangle - Triangle weights
+       * Hanning - Cosine np.hanning weights with enpoints of zero removed
    * Data Plotting:
+       * StackPlot - Put several plots on one page
        * TempPlot - Temperature plot with optional annotations
        * TempRangePlot - Plot multiple temperatures (e.g. min, max)
        * ErrorPlot - Plot showing 1 and 2 std dev from trend line
@@ -29,6 +31,7 @@
        * HotDaysPlot - Show number of hot days per year
    * Miscellaneous:
        * CompareSmoothing - Show how Lowess and WMA compare for trends
+       * CompareWeighting - Show how different weight windows compare
 
    Requires Python 3 (tested on 3.6.1, Anaconda distribution)
 """
@@ -231,6 +234,23 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
         yr.iloc[-1, i] = (yr.iloc[-2, i] - pl.iloc[0, i]) + yr.iloc[-1, i]
 
     return yr
+
+def GetLastDay(df):
+    """Return index to last day with valid data.
+
+    Parameters
+    ----------
+    df : dataframe containing daily data
+
+    Returns
+    -------
+    Integer: df.iloc[i] will give data on last day.
+    """
+    cyr = df.Year[-1]
+    dfc = df.loc[lambda df: df.Year == cyr]
+    c = len(dfc) - dfc.iloc[:,4].count()
+    return len(df) - c - 1
+
 
 def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     """Fits a nonparametric regression curve to a scatterplot.
@@ -671,24 +691,20 @@ def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
     return
 
 
-def TempRangePlot(df, col=[4, 6, 8], size=15, change=True, fignum=2, city=0):
+def TempRangePlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2, city=0):
     """Simple plot with optional baseline.
 
     Currently requires 3 columns to work (min, max, mean).
     """
-    yr = GetYears(df)
-    hi = WeightedMovingAverage(yr.iloc[:, 0], size)
-    mn = WeightedMovingAverage(yr.iloc[:, 1], size)
-    lo = WeightedMovingAverage(yr.iloc[:, 2], size)
+    yf = GetYears(df, cols=cols)
     if change:
-        hi = hi - yr.iloc[:30, 0].mean()
-        mn = mn - yr.iloc[:30, 1].mean()
-        lo = lo - yr.iloc[:30, 2].mean()
+        for col in yf.columns:
+            yf[col] = yf[col] - yf[col][:30].mean()
+    ma = [WeightedMovingAverage(yf[col], size) for col in yf.columns]
     fig = plt.figure(fignum)
     fig.clear()
-    plt.plot(hi, 'r-', alpha=0.5)
-    plt.plot(mn, 'k-', alpha=0.5)
-    plt.plot(lo, 'c-', alpha=0.5)
+    for i, y in enumerate(ma):
+        plt.plot(y, '-', alpha=0.5, label=yf.columns[i])
     plt.ylabel('Temperature Change from Baseline (°C)')
     plt.xlabel('Year')
     plt.title("Change in " + stationName[city] + "'s Annual Temperature")
