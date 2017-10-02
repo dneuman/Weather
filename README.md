@@ -34,6 +34,7 @@ I'm investigating smoothing techniques such as adding polynomial regression to l
 **Update**: (27Sep17) Added padding option to all smoothing functions. This significantly improves performance at the start and end of the data. Padding consists of reflecting the data around the first and last points. This has the side-effect of causing the trend lines to end up being horizontal (zero slope) at the start and end. However, on the test data it doesn't look too bad. Lowess requires significantly more points to get similar performance as the other methods (50 vs 31 point window). Lowess linear and SSA one component are very similar and the least wavy. Weighted Moving Average, Lowess binomial, and SSA two component are very similar, and follow the data more closely.
 
 ## Upcoming Changes
-* I will eventually move the smoothing functions into their own file to make them useful elsewhere.
+* ~~I will eventually move the smoothing functions into their own file to make them useful elsewhere.~~ Done
 * The initializing weather stations and cities will be put into a text file loaded at the beginning to add more flexibility. Change a file, rather than changing the source code. I may do the same with the basepath variable, or determine from code location.
+* Considering making a subclass of DataFrames to hold city descriptive info together with the data. May be just simpler to add attributes to data when loading.
 * Several more graph types towards the end of the year.
