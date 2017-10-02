@@ -14,22 +14,17 @@
    * Data Combining:
        * GetMonths - Return data grouped by months
        * GetYears - Return data grouped by years
-   * Data Smoothing:
-       * Lowess - Use locally weighted scatterplot smoothing
-       * WeightedMovingAverage - Use a triangular window for moving avg
-       * SSA - Use Singular Spectrum Analysis
-       * Triangle - Triangle weights
-       * Hanning - Cosine np.hanning weights with enpoints of zero removed
    * Data Plotting:
        * StackPlot - Put several plots on one page
        * TempPlot - Temperature plot with optional annotations
-       * TempRangePlot - Plot multiple temperatures (e.g. min, max)
+       * TrendPlot - Plot multiple temperature trends (e.g. min, max)
        * ErrorPlot - Plot showing 1 and 2 std dev from trend line
        * RecordsPlot - Show all records on one graph
        * PrecipPlot - Show precipitation
        * SnowPlot - Show snowfall
        * HotDaysPlot - Show number of hot days per year
    * Miscellaneous:
+       * GetLastDay - Returns index to last day of data
        * CompareSmoothing - Show how Lowess and WMA compare for trends
        * CompareWeighting - Show how different weight windows compare
 
@@ -55,7 +50,7 @@ basepath = '/Users/Dan/Documents/Weather/Stations/'
 stationID = [4333]  # Ottawa
 stationName = ['Ottawa']
 nonHeadRows = 25
-dataTypes = { #0: np.datetime64,  # "Date/Time"
+dataTypes = { #0: np.datetime64,  # "Date/Time" (not used since it is index)
              1: int,      # "Year"
              2: int,      # "Month",
              3: int,      # "Day",
@@ -83,6 +78,33 @@ dataTypes = { #0: np.datetime64,  # "Date/Time"
              25: float,   # "Spd of Max Gust (km/h)",
              26: str      # "Spd of Max Gust Flag"
              }
+
+def _Str(self):
+    """Return a summary of the data
+    """
+    cols = [4, 6, 8, 18]
+    lbl = self.columns[cols]
+    s = "Date        Max Temp  Min Temp Mean Temp    Precip"
+    template = "{0} {p[0]:9.1f} {p[1]:9.1f} {p[2]:9.1f} {p[3]:9.1f}"
+    last = GetLastDay(self)
+    try:
+        s = '\n'.join(["City: "+self.city, s])
+    except NameError:
+        pass
+    for i in range(5):
+        s = '\n'.join([s, template.format(self.index[i].date(),
+                                          p=self[lbl].iloc[i])])
+    s = '\n'.join([s,'...'])
+    for i in range(6):
+        s = '\n'.join([s, template.format(self.index[last-4+i].date(),
+                                          p=self[lbl].iloc[last-4+i])])
+    s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
+                                           len(self.columns))])
+    return s
+
+def Str(df):
+    print(_Str(df))
+
 
 
 def GetData(year=None, city=0):
@@ -235,6 +257,18 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
 
     return yr
 
+def GetFirstDay(df):
+    """Return index to first day with valid data.
+
+    Parameters
+    ----------
+    df : dataframe containing daily data
+
+    Returns
+    -------
+    Integer: df.iloc[i] will give data on first day.
+    """
+
 def GetLastDay(df):
     """Return index to last day with valid data.
 
@@ -372,7 +406,7 @@ def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
     return
 
 
-def SmoothPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2, city=0):
+def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2, city=0):
     """Simple smoothed plots with optional baseline.
     """
     yf = GetYears(df, cols=cols)
@@ -391,117 +425,6 @@ def SmoothPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2, city=0):
     plt.show()
     return
 
-def CompareWeighting(df, cols=[8], size=31, fignum=8, city=0):
-    """Compare various weighting windows on real data.
-    """
-    yf = GetYears(df, cols)
-    yf = yf - yf.iloc[:30].mean()
-    col = yf.columns[0]
-    y = yf[col]
-    fig = plt.figure(fignum)
-    fig.clear()
-    plt.plot(y, 'ko-', lw=1, alpha=0.15,
-             label=(stationName[city]+' '+col))
-
-    ma = sm.WeightedMovingAverage(y, size, winType=sm.Triangle)
-    plt.plot(ma, '-', alpha=0.8, lw=1, label='Triangle')
-
-    w = sm.Triangle(size, clip=0.8)
-    ma = sm.WeightedMovingAverage(y, size, wts=w)
-    plt.plot(ma, '-', alpha=0.8, lw=1, label='Clipped Triangle (0.5)')
-
-    ma = sm.WeightedMovingAverage(y, size, winType=np.hamming)
-    plt.plot(ma, '-', alpha=0.8, lw=1, label='Hamming')
-
-    ma = sm.WeightedMovingAverage(y, size)
-    plt.plot(ma, '-', alpha=0.8, lw=1, label='Hanning')
-
-    ma = sm.WeightedMovingAverage(y, size, winType=np.blackman)
-    plt.plot(ma, '-', alpha=0.8, lw=1, label='Blackman')
-
-    plt.title('Comparison of Window Types for Moving Average')
-    plt.legend(loc='upper left')
-    plt.ylabel('Temperature Change from Baseline (°C)')
-    # Annotate chart
-    bx = [yf.index[0], yf.index[0], yf.index[30], yf.index[30]]
-    by = [-.3, -.4, -.4, -.3]
-    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
-    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
-
-    plt.show()
-
-def CompareSmoothing(df, cols=[8],
-                     size=31,
-                     frac=2./3., pts=31, itn=3, order=2,
-                     lags=31,
-                     fignum=9, city=0):
-    """Comparison between moving weighted average and lowess smoothing.
-
-    df:    daily records for a city
-    cols:  list of columns to use. Currently only uses first column supplied.
-    size:  size of moving average window
-    frac:  fraction of data to use for lowess window
-    itn:   number of iterations to use for lowess
-    order: order of the lowess polynomial
-    lags:     number of time lags to use for SSA
-    """
-    yf = GetYears(df, cols)
-    yf = yf - yf.iloc[:30].mean()
-    col = yf.columns[0]
-    y = yf[col]
-    fig = plt.figure(fignum)
-    fig.clear()
-    plt.plot(y, 'ko-', lw=1, alpha=0.15,
-             label=(stationName[city]+' '+col))
-    if pts==None:
-        p = np.ceil(frac * len(y))
-    else:
-        p = pts
-
-    ma = sm.WeightedMovingAverage(y, size)
-    plt.plot(ma, 'b-', alpha=0.5, lw=2, label='Weighted Moving Average')
-
-    #mc = WeightedMovingAverage(y, size, const=True)
-    #plt.plot(mc, 'r-', alpha=0.5, lw=2, label='WMA Constant Window')
-
-    lo = sm.Lowess(y, f=frac, pts=pts, itn=itn)
-    plt.plot(lo, 'g-', alpha=0.5, lw=2, label='Lowess (linear)')
-
-    lp = sm.Lowess(y, f=frac, pts=pts, itn=itn, order=order)
-    plt.plot(lp, 'g.', alpha=0.5, lw=2, label='Lowess (polynomial)')
-
-    ss = sm.SSA(y, lags, rtnRC=2)
-    plt.plot(ss.iloc[:,0], 'r-', alpha=0.5, lw=2, label='SSA')
-
-    ss2 = ss.sum(axis=1)
-    plt.plot(ss2, 'r.', alpha=0.5, lw=2, label='SSA, 2 components')
-
-    #so = SMLowess(y, f=frac, pts=pts, iter=itn)
-    #plt.plot(so, 'c-', alpha=0.5, lw=2, label='SM Lowess')
-
-    plt.title('Comparison between Weighted Moving Average, Lowess, and SSA'
-              ' - Padded')
-    plt.legend(loc='upper left')
-    plt.ylabel('Temperature Change from Baseline (°C)')
-    # Annotate chart
-    bx = [yf.index[0], yf.index[0], yf.index[30], yf.index[30]]
-    by = [-.3, -.4, -.4, -.3]
-    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
-    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
-    boxt = ("Moving Average:\n"
-           "  Weights: Cosine (Hanning)\n"
-           "  Size: {0}\n"
-           "Lowess:\n"
-           "  Size: {1}\n"
-           "  Iterations: {2}\n"
-           "  Polynomial Order: {3}\n"
-           "Singular Spectrum Analysis:\n"
-           "  Lags: {4}\n"
-           "Chart: @Dan613")
-    box = boxt.format(size, p, itn, order, lags)
-    plt.text(1987, np.floor(y.min())+.05, box)
-    plt.show()
-    return
 
 def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
     """Show standard deviation of temperature from trend.
@@ -750,3 +673,115 @@ def HotDaysPlot(df, city, fignum=8):
     plt.legend((p2[0], p1[0]), ('Days > 25°C', 'Days > 30°C'))
     plt.title("Warm and Hot Days for "+stationName[city])
     plt.show()
+
+def CompareWeighting(df, cols=[8], size=31, fignum=8, city=0):
+    """Compare various weighting windows on real data.
+    """
+    yf = GetYears(df, cols)
+    yf = yf - yf.iloc[:30].mean()
+    col = yf.columns[0]
+    y = yf[col]
+    fig = plt.figure(fignum)
+    fig.clear()
+    plt.plot(y, 'ko-', lw=1, alpha=0.15,
+             label=(stationName[city]+' '+col))
+
+    ma = sm.WeightedMovingAverage(y, size, winType=sm.Triangle)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Triangle')
+
+    w = sm.Triangle(size, clip=0.8)
+    ma = sm.WeightedMovingAverage(y, size, wts=w)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Clipped Triangle (0.5)')
+
+    ma = sm.WeightedMovingAverage(y, size, winType=np.hamming)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Hamming')
+
+    ma = sm.WeightedMovingAverage(y, size)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Hanning')
+
+    ma = sm.WeightedMovingAverage(y, size, winType=np.blackman)
+    plt.plot(ma, '-', alpha=0.8, lw=1, label='Blackman')
+
+    plt.title('Comparison of Window Types for Moving Average')
+    plt.legend(loc='upper left')
+    plt.ylabel('Temperature Change from Baseline (°C)')
+    # Annotate chart
+    bx = [yf.index[0], yf.index[0], yf.index[30], yf.index[30]]
+    by = [-.3, -.4, -.4, -.3]
+    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
+    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
+
+    plt.show()
+
+def CompareSmoothing(df, cols=[8],
+                     size=31,
+                     frac=2./3., pts=31, itn=3, order=2,
+                     lags=31,
+                     fignum=9, city=0):
+    """Comparison between moving weighted average and lowess smoothing.
+
+    df:    daily records for a city
+    cols:  list of columns to use. Currently only uses first column supplied.
+    size:  size of moving average window
+    frac:  fraction of data to use for lowess window
+    itn:   number of iterations to use for lowess
+    order: order of the lowess polynomial
+    lags:     number of time lags to use for SSA
+    """
+    yf = GetYears(df, cols)
+    yf = yf - yf.iloc[:30].mean()
+    col = yf.columns[0]
+    y = yf[col]
+    fig = plt.figure(fignum)
+    fig.clear()
+    plt.plot(y, 'ko-', lw=1, alpha=0.15,
+             label=(stationName[city]+' '+col))
+    if pts==None:
+        p = np.ceil(frac * len(y))
+    else:
+        p = pts
+
+    ma = sm.WeightedMovingAverage(y, size)
+    plt.plot(ma, 'b-', alpha=0.5, lw=2, label='Weighted Moving Average')
+
+    #mc = WeightedMovingAverage(y, size, const=True)
+    #plt.plot(mc, 'r-', alpha=0.5, lw=2, label='WMA Constant Window')
+
+    lo = sm.Lowess(y, f=frac, pts=pts, itn=itn)
+    plt.plot(lo, 'g-', alpha=0.5, lw=2, label='Lowess (linear)')
+
+    lp = sm.Lowess(y, f=frac, pts=pts, itn=itn, order=order)
+    plt.plot(lp, 'g.', alpha=0.5, lw=2, label='Lowess (polynomial)')
+
+    ss = sm.SSA(y, lags, rtnRC=2)
+    plt.plot(ss.iloc[:,0], 'r-', alpha=0.5, lw=2, label='SSA')
+
+    ss2 = ss.sum(axis=1)
+    plt.plot(ss2, 'r.', alpha=0.5, lw=2, label='SSA, 2 components')
+
+    #so = SMLowess(y, f=frac, pts=pts, iter=itn)
+    #plt.plot(so, 'c-', alpha=0.5, lw=2, label='SM Lowess')
+
+    plt.title('Comparison between Weighted Moving Average, Lowess, and SSA'
+              ' - Padded')
+    plt.legend(loc='upper left')
+    plt.ylabel('Temperature Change from Baseline (°C)')
+    # Annotate chart
+    bx = [yf.index[0], yf.index[0], yf.index[30], yf.index[30]]
+    by = [-.3, -.4, -.4, -.3]
+    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
+    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
+    boxt = ("Moving Average:\n"
+           "  Weights: Cosine (Hanning)\n"
+           "  Size: {0}\n"
+           "Lowess:\n"
+           "  Size: {1}\n"
+           "  Iterations: {2}\n"
+           "  Polynomial Order: {3}\n"
+           "Singular Spectrum Analysis:\n"
+           "  Lags: {4}\n"
+           "Chart: @Dan613")
+    box = boxt.format(size, p, itn, order, lags)
+    plt.text(1987, np.floor(y.min())+.05, box)
+    plt.show()
+    return
