@@ -87,19 +87,30 @@ def _Str(self):
     s = "Date        Max Temp  Min Temp Mean Temp    Precip"
     template = "{0} {p[0]:9.1f} {p[1]:9.1f} {p[2]:9.1f} {p[3]:9.1f}"
     last = GetLastDay(self)
+    first = GetFirstDay(self)
     try:
         s = '\n'.join(["City: "+self.city, s])
     except NameError:
         pass
-    for i in range(5):
+
+    if first > 0:
+        s = '\n'.join([s,
+                       template.format(self.index[0].date(),
+                                       p=self[lbl].iloc[0]),
+                       '...',
+                       template.format(self.index[first-1].date(),
+                                       p=self[lbl].iloc[first-1])])
+    for i in range(first, first+5):
         s = '\n'.join([s, template.format(self.index[i].date(),
                                           p=self[lbl].iloc[i])])
     s = '\n'.join([s,'...'])
-    for i in range(6):
-        s = '\n'.join([s, template.format(self.index[last-4+i].date(),
-                                          p=self[lbl].iloc[last-4+i])])
-    s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
-                                           len(self.columns))])
+    for i in range(last-4, last+2):
+        s = '\n'.join([s, template.format(self.index[i].date(),
+                                          p=self[lbl].iloc[i])])
+    years = self.iloc[last,0] - self.iloc[first,0]
+    s = '\n'.join([s, '[{}r x {}c] {} years'.format(len(self.index),
+                                                     len(self.columns),
+                                                     years)])
     return s
 
 def Str(df):
@@ -268,6 +279,9 @@ def GetFirstDay(df):
     -------
     Integer: df.iloc[i] will give data on first day.
     """
+    for i in range(len(df.index)):
+        if not np.isnan(df.iat[i,4]): break
+    return i
 
 def GetLastDay(df):
     """Return index to last day with valid data.
@@ -280,12 +294,9 @@ def GetLastDay(df):
     -------
     Integer: df.iloc[i] will give data on last day.
     """
-    cyr = df.Year[-1]
-    dfc = df.loc[lambda df: df.Year == cyr]
-    c = len(dfc) - dfc.iloc[:,4].count()
-    return len(df) - c - 1
-
-
+    for i in range(len(df.index)-1,-1,-1):
+        if not np.isnan(df.iat[i,4]): break
+    return i
 
 def StackPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
