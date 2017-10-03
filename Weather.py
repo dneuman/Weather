@@ -82,35 +82,54 @@ dataTypes = { #0: np.datetime64,  # "Date/Time" (not used since it is index)
 def _Str(self):
     """Return a summary of the data
     """
-    cols = [4, 6, 8, 18]
-    lbl = self.columns[cols]
-    s = "Date        Max Temp  Min Temp Mean Temp    Precip"
-    template = "{0} {p[0]:9.1f} {p[1]:9.1f} {p[2]:9.1f} {p[3]:9.1f}"
+    def GetLine(r):
+        if hasattr(self.index[0], 'year'):
+            st = str(self.index[r].date()).ljust(10)
+        else:
+            st = str(self.index[r]).ljust(10)
+        for i, c in enumerate(lbl):
+            num = max(7, len(hdgs[i])+2)
+            st = st + '{:.1f}'.format(self[c].iloc[r]).rjust(num)
+        return st
+
+    if not hasattr(self, 'period'):
+        num = min(3, len(self.columns))
+        lbl = list(self.columns[0:num])
+        hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+    elif self.period == 'daily':
+        cols = [4, 6, 8, 18]
+        lbl = list(self.columns[cols])
+        hdgs = ['Max Temp','Min Temp','Mean Temp','Precip']
+        hdgs = [h.rjust(max(7,len(h))) for h in hdgs]
+    elif self.period == 'monthly':
+        cols = [0, 5, 11]
+        lbl = list(self.columns[cols])
+        hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+    elif self.period == 'annual':
+        lbl = list(self.columns)
+        hdgs = [l.rjust(max(7,len(l))) for l in lbl]
     last = GetLastDay(self)
     first = GetFirstDay(self)
-    try:
-        s = '\n'.join(["City: "+self.city, s])
-    except NameError:
-        pass
-
+    s = ''
+    if hasattr(self, 'city'):
+        s = 'City: ' + self.city + "  Type: " + self.type + '\n'
+    s = s + "Date        " + "  ".join(hdgs)
     if first > 0:
-        s = '\n'.join([s,
-                       template.format(self.index[0].date(),
-                                       p=self[lbl].iloc[0]),
-                       '...',
-                       template.format(self.index[first-1].date(),
-                                       p=self[lbl].iloc[first-1])])
+        s = '\n'.join([s, GetLine(0), '...', GetLine(first-1)])
     for i in range(first, first+5):
-        s = '\n'.join([s, template.format(self.index[i].date(),
-                                          p=self[lbl].iloc[i])])
+        s = '\n'.join([s, GetLine(i)])
     s = '\n'.join([s,'...'])
-    for i in range(last-4, last+2):
-        s = '\n'.join([s, template.format(self.index[i].date(),
-                                          p=self[lbl].iloc[i])])
-    years = self.iloc[last,0] - self.iloc[first,0]
-    s = '\n'.join([s, '[{}r x {}c] {} years'.format(len(self.index),
-                                                     len(self.columns),
-                                                     years)])
+    num = min(len(self.index), last+2)
+    for i in range(last-4, num):
+        s = '\n'.join([s, GetLine(i)])
+    s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
+                                           len(self.columns))])
+    if hasattr(self, 'city'):
+        if hasattr(self.index[first], 'year'):
+            years = self.index[last].year - self.index[first].year
+        else:
+            years = self.index[last] - self.index[first]
+        s = s + '  Years: ' + str(years+1)
     return s
 
 def Str(df):
@@ -198,19 +217,26 @@ def SaveDF(df, city=0):
     df.to_csv(file,
               float_format="% .1f")
 
-def LoadDF(city=0):
+def LoadDF(id=0):
     """Load weather data into a data frame
 
     city: (opt) City to retrieve. Defaults to first city in list.
 
     Assumes data located at /basepath/city/Data/
     """
-    file = "/".join([basepath, stationName[city], "Data/complete.csv"])
+    file = "/".join([basepath, stationName[id], "Data/complete.csv"])
     df = pd.read_csv(file,
                      index_col=0,
                      header=0,
                      dtype=dataTypes,
                      parse_dates=True)
+    df.id = id
+    df.city = stationName[id]
+    df.station = stationID[id]
+    df.url = file
+    df.period = 'daily'
+    df.type = None
+    df.__class__.__str__ = _Str
     return df
 
 
@@ -237,6 +263,9 @@ def GetMonths(df, col, func=np.mean):
                           aggfunc=func)
     avgs = avgs[label]  # turn into simple dataframe for simplicity
     avgs.rename(columns=colNames, inplace=True)
+    avgs.city = df.city
+    avgs.period = 'monthly'
+    avgs.type = func.__name__ + ' ' + label
     return avgs
 
 
@@ -249,7 +278,7 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
     Returns dataframe with the grouped annual data
     """
     labels = df.columns[cols]
-    yr = df.pivot_table(values=list(labels),
+    yf = df.pivot_table(values=list(labels),
                         index=['Year'],
                         aggfunc=func)
     cyr = df.Year[-1]  # get current year
@@ -264,9 +293,12 @@ def GetYears(df, cols=[4, 6, 8], func=np.mean):
                         aggfunc=func)
     # adjust current year by last year's change from current day to year end
     for i in range(len(labels)):
-        yr.iloc[-1, i] = (yr.iloc[-2, i] - pl.iloc[0, i]) + yr.iloc[-1, i]
+        yf.iloc[-1, i] = (yf.iloc[-2, i] - pl.iloc[0, i]) + yf.iloc[-1, i]
 
-    return yr
+    yf.city = df.city
+    yf.period = 'annual'
+    yf.type = func.__name__
+    return yf
 
 def GetFirstDay(df):
     """Return index to first day with valid data.
@@ -279,8 +311,9 @@ def GetFirstDay(df):
     -------
     Integer: df.iloc[i] will give data on first day.
     """
+    col = min(4, len(df.columns)-1)
     for i in range(len(df.index)):
-        if not np.isnan(df.iat[i,4]): break
+        if not np.isnan(df.iat[i,col]): break
     return i
 
 def GetLastDay(df):
@@ -294,8 +327,9 @@ def GetLastDay(df):
     -------
     Integer: df.iloc[i] will give data on last day.
     """
+    col = min(4, len(df.columns)-1)
     for i in range(len(df.index)-1,-1,-1):
-        if not np.isnan(df.iat[i,4]): break
+        if not np.isnan(df.iat[i,col]): break
     return i
 
 def StackPlot(df, cols=2, title='', fignum=20):
