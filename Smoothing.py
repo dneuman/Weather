@@ -4,6 +4,8 @@ Spyder Editor
 
 This is a temporary script file.
 """
+import numpy as np
+import pandas as pd
 
 def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     """Fits a nonparametric regression curve to a scatterplot.

@@ -79,61 +79,72 @@ dataTypes = { #0: np.datetime64,  # "Date/Time" (not used since it is index)
              26: str      # "Spd of Max Gust Flag"
              }
 
-def _Str(self):
-    """Return a summary of the data
-    """
-    def GetLine(r):
-        if hasattr(self.index[0], 'year'):
-            st = str(self.index[r].date()).ljust(10)
-        else:
-            st = str(self.index[r]).ljust(10)
-        for i, c in enumerate(lbl):
-            num = max(7, len(hdgs[i])+2)
-            st = st + '{:.1f}'.format(self[c].iloc[r]).rjust(num)
-        return st
+class WxDataFrame(pd.core.frame.DataFrame):
 
-    if not hasattr(self, 'period'):
-        num = min(3, len(self.columns))
-        lbl = list(self.columns[0:num])
-        hdgs = [l.rjust(max(7,len(l))) for l in lbl]
-    elif self.period == 'daily':
-        cols = [4, 6, 8, 18]
-        lbl = list(self.columns[cols])
-        hdgs = ['Max Temp','Min Temp','Mean Temp','Precip']
-        hdgs = [h.rjust(max(7,len(h))) for h in hdgs]
-    elif self.period == 'monthly':
-        cols = [0, 5, 11]
-        lbl = list(self.columns[cols])
-        hdgs = [l.rjust(max(7,len(l))) for l in lbl]
-    elif self.period == 'annual':
-        lbl = list(self.columns)
-        hdgs = [l.rjust(max(7,len(l))) for l in lbl]
-    last = GetLastDay(self)
-    first = GetFirstDay(self)
-    s = ''
-    if hasattr(self, 'city'):
-        s = 'City: ' + self.city + "  Type: " + self.type + '\n'
-    s = s + "Date        " + "  ".join(hdgs)
-    if first > 0:
-        s = '\n'.join([s, GetLine(0), '...', GetLine(first-1)])
-    for i in range(first, first+5):
-        s = '\n'.join([s, GetLine(i)])
-    s = '\n'.join([s,'...'])
-    num = min(len(self.index), last+2)
-    for i in range(last-4, num):
-        s = '\n'.join([s, GetLine(i)])
-    s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
-                                           len(self.columns))])
-    if hasattr(self, 'city'):
-        if hasattr(self.index[first], 'year'):
-            years = self.index[last].year - self.index[first].year
-        else:
-            years = self.index[last] - self.index[first]
-        s = s + '  Years: ' + str(years+1)
-    return s
+    cf = None  # city information
 
-def Str(df):
-    print(_Str(df))
+    def __init__(self, id=0):
+        if cf is None:
+            cf = pd.read_csv('Cities.csv',
+                              header=0,
+                              index_col=False)
+        self = LoadDF(id)
+
+    def __str__(self):
+        """Return a summary of the data
+        """
+        def GetLine(r):
+            if hasattr(self.index[0], 'year'):
+                st = str(self.index[r].date()).ljust(10)
+            else:
+                st = str(self.index[r]).ljust(10)
+            for i, c in enumerate(lbl):
+                num = max(7, len(hdgs[i])+2)
+                st = st + '{:.1f}'.format(self[c].iloc[r]).rjust(num)
+            return st
+
+        if not hasattr(self, 'period'):
+            num = min(3, len(self.columns))
+            lbl = list(self.columns[0:num])
+            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+        elif self.period == 'daily':
+            cols = [4, 6, 8, 18]
+            lbl = list(self.columns[cols])
+            hdgs = ['Max Temp','Min Temp','Mean Temp','Precip']
+            hdgs = [h.rjust(max(7,len(h))) for h in hdgs]
+        elif self.period == 'monthly':
+            cols = [0, 5, 11]
+            lbl = list(self.columns[cols])
+            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+        elif self.period == 'annual':
+            lbl = list(self.columns)
+            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+        last = GetLastDay(self)
+        first = GetFirstDay(self)
+        s = ''
+        if hasattr(self, 'city'):
+            s = 'City: ' + self.city + "  Type: " + self.type + '\n'
+        s = s + "Date        " + "  ".join(hdgs)
+        if first > 0:
+            s = '\n'.join([s, GetLine(0), '...', GetLine(first-1)])
+        for i in range(first, first+5):
+            s = '\n'.join([s, GetLine(i)])
+        s = '\n'.join([s,'...'])
+        num = min(len(self.index), last+2)
+        for i in range(last-4, num):
+            s = '\n'.join([s, GetLine(i)])
+        s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
+                                               len(self.columns))])
+        if hasattr(self, 'city'):
+            if hasattr(self.index[first], 'year'):
+                years = self.index[last].year - self.index[first].year
+            else:
+                years = self.index[last] - self.index[first]
+            s = s + '  Years: ' + str(years+1)
+        return s
+
+    def Str(self):
+        print(__str__(self))
 
 
 
@@ -173,8 +184,14 @@ def AddYears(df, sYear=None, eYear=None, city=0):
         sYear = eYear
     for theYear in range(sYear, eYear+1):
         tf = GetData(theYear, city)
-        df = tf.combine_first(df)
-    return df
+        nf = tf.combine_first(df)
+    nf.city = df.city
+    nf.period = df.period
+    nf.type = df.type
+    nf.url = df.url
+    nf.id = df.id
+    nf.station = df.station
+    return nf
 
 def RawToDF(city=0, header=25):
     """Process all data in a directory, returning a data frame.
@@ -235,7 +252,7 @@ def LoadDF(id=0):
     df.station = stationID[id]
     df.url = file
     df.period = 'daily'
-    df.type = None
+    df.type = 'daily'
     df.__class__.__str__ = _Str
     return df
 
