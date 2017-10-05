@@ -78,24 +78,24 @@ class WxDF(pd.DataFrame):
              25: float,   # "Spd of Max Gust (km/h)",
              26: str      # "Spd of Max Gust Flag"
              }
-    _metadata = ['city','period','type','url','station','id']
+    _metadata = ['city','period','type','path','station','id']
 
     _cf = None  # city information
 
-    def __init__(self, id=0):
+    def __new__(cls, id=0):
         if WxDF._cf is None:
             WxDF._cf = pd.read_csv('Cities.csv',
                               header=0,
                               skipinitialspace=True,
                               index_col=False)
-        print(WxDF._cf)
-        df = pd.read_csv(basepath+WxDF._cf.url[id],
-                         index_col=0,
-                         header=0,
-                         dtype=WxDF._dataTypes,
-                         parse_dates=True)
+        df = pd.read_csv(basepath+WxDF._cf.path[id],
+                                         index_col=0,
+                                         header=0,
+                                         dtype=WxDF._dataTypes,
+                                         parse_dates=True)
+        #df.__class__ = WxDF
         df.city = WxDF._cf.city[id]
-        df.url = WxDF._cf.url[id]
+        df.url = WxDF._cf.path[id]
         df.station = WxDF._cf.station[id]
         df.id = id
         df.type = 'daily'
