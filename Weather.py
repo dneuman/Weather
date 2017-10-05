@@ -47,10 +47,10 @@ plt.style.use('ggplot')
 # user styles can be placed in ~/.matplotlib/
 
 basepath = '/Users/Dan/Documents/Weather/Stations/'
-stationID = [4333]  # Ottawa
-stationName = ['Ottawa']
-nonHeadRows = 25
-dataTypes = { #0: np.datetime64,  # "Date/Time" (not used since it is index)
+
+class WxDF(pd.DataFrame):
+    _nonHeadRows = 25
+    _dataTypes = { #0: np.datetime64,  # "Date/Time" (not used as it is index)
              1: int,      # "Year"
              2: int,      # "Month",
              3: int,      # "Day",
@@ -78,17 +78,33 @@ dataTypes = { #0: np.datetime64,  # "Date/Time" (not used since it is index)
              25: float,   # "Spd of Max Gust (km/h)",
              26: str      # "Spd of Max Gust Flag"
              }
-
-class WxDataFrame(pd.core.frame.DataFrame):
+    _metadata = ['city','period','type','url','station','id']
 
     _cf = None  # city information
 
     def __init__(self, id=0):
-        if WxDataFrame._cf is None:
-            WxDataFrame._cf = pd.read_csv('Cities.csv',
+        if WxDF._cf is None:
+            WxDF._cf = pd.read_csv('Cities.csv',
                               header=0,
+                              skipinitialspace=True,
                               index_col=False)
-        df = LoadDF(id)
+        print(WxDF._cf)
+        df = pd.read_csv(basepath+WxDF._cf.url[id],
+                         index_col=0,
+                         header=0,
+                         dtype=WxDF._dataTypes,
+                         parse_dates=True)
+        df.city = WxDF._cf.city[id]
+        df.url = WxDF._cf.url[id]
+        df.station = WxDF._cf.station[id]
+        df.id = id
+        df.type = 'daily'
+        df.period = 'daily'
+        return df
+
+    @property
+    def _constructor(self):
+        return WxDF
 
     def __str__(self):
         """Return a summary of the data
@@ -144,9 +160,11 @@ class WxDataFrame(pd.core.frame.DataFrame):
         return s
 
     def Str(self):
-        print(__str__(self))
+        print(self.__str__)
 
-
+    def List(self):
+        for i in len(self._cf):
+            print(i, self._cf[i].city, self._cf[i].station)
 
     def _GetData(self, year=None):
         """Get a year's worth of data from Environment Canada site.
@@ -162,10 +180,10 @@ class WxDataFrame(pd.core.frame.DataFrame):
                    "&submit=Download+Data")
         url = baseURL.format(stn=self.station,
                              yr=year)
-        df = pd.read_csv(url, skiprows=nonHeadRows,
+        df = pd.read_csv(url, skiprows=self._nonHeadRows,
                          index_col=0,
                          parse_dates=True,
-                         dtype=dataTypes,
+                         dtype=self._dataTypes,
                          na_values=['M','<31'])
         return df
 
