@@ -93,14 +93,16 @@ class WxDF(pd.DataFrame):
                                          header=0,
                                          dtype=WxDF._dataTypes,
                                          parse_dates=True)
-        #df.__class__ = WxDF
-        df.city = WxDF._cf.city[id]
-        df.url = WxDF._cf.path[id]
-        df.station = WxDF._cf.station[id]
-        df.id = id
-        df.type = 'daily'
-        df.period = 'daily'
-        return df
+        obj = super(WxDF, cls).__new__(cls, values=df.values,
+                                         columns=df.columns,
+                                         index=df.index)
+        obj.city = WxDF._cf.city[id]
+        obj.url = WxDF._cf.path[id]
+        obj.station = WxDF._cf.station[id]
+        obj.id = id
+        obj.type = 'daily'
+        obj.period = 'daily'
+        return obj
 
     @property
     def _constructor(self):
