@@ -82,7 +82,7 @@ class WxDF(pd.DataFrame):
 
     _cf = None  # city information
 
-    def __new__(cls, id=0):
+    def __init__(self, id=0):
         if WxDF._cf is None:
             WxDF._cf = pd.read_csv('Cities.csv',
                               header=0,
@@ -93,16 +93,13 @@ class WxDF(pd.DataFrame):
                                          header=0,
                                          dtype=WxDF._dataTypes,
                                          parse_dates=True)
-        obj = super(WxDF, cls).__new__(cls, values=df.values,
-                                         columns=df.columns,
-                                         index=df.index)
-        obj.city = WxDF._cf.city[id]
-        obj.url = WxDF._cf.path[id]
-        obj.station = WxDF._cf.station[id]
-        obj.id = id
-        obj.type = 'daily'
-        obj.period = 'daily'
-        return obj
+        super(WxDF, self).__init__(df)
+        self.city = WxDF._cf.city[id]
+        self.url = WxDF._cf.path[id]
+        self.station = WxDF._cf.station[id]
+        self.id = id
+        self.type = 'daily'
+        self.period = 'daily'
 
     @property
     def _constructor(self):
