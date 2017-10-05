@@ -81,14 +81,14 @@ dataTypes = { #0: np.datetime64,  # "Date/Time" (not used since it is index)
 
 class WxDataFrame(pd.core.frame.DataFrame):
 
-    cf = None  # city information
+    _cf = None  # city information
 
     def __init__(self, id=0):
-        if cf is None:
-            cf = pd.read_csv('Cities.csv',
+        if WxDataFrame._cf is None:
+            WxDataFrame._cf = pd.read_csv('Cities.csv',
                               header=0,
                               index_col=False)
-        self = LoadDF(id)
+        df = LoadDF(id)
 
     def __str__(self):
         """Return a summary of the data
@@ -148,50 +148,50 @@ class WxDataFrame(pd.core.frame.DataFrame):
 
 
 
-def GetData(year=None, city=0):
-    """Get a year's worth of data from Environment Canada site.
+    def _GetData(self, year=None):
+        """Get a year's worth of data from Environment Canada site.
 
-    year: (opt) Year to retrieve. Defaults to current year.
-    city: (opt) City to retrieve. Defaults to first city in list.
-    Returns Pandas data frame with daily data.
-    """
-    if year is None:
-        year = time.localtime().tm_year
-    baseURL = ("http://climate.weather.gc.ca/climate_data/bulk_data_e.html?"
-               "format=csv&stationID={stn}&Year={yr}&timeframe=2"
-               "&submit=Download+Data")
-    url = baseURL.format(stn=stationID[city],
-                         yr=year)
-    df = pd.read_csv(url, skiprows=nonHeadRows,
-                     index_col=0,
-                     parse_dates=True,
-                     dtype=dataTypes,
-                     na_values=['M','<31'])
-    return df
+        year: (opt) Year to retrieve. Defaults to current year.
+        city: (opt) City to retrieve. Defaults to first city in list.
+        Returns Pandas data frame with daily data.
+        """
+        if year is None:
+            year = time.localtime().tm_year
+        baseURL = ("http://climate.weather.gc.ca/climate_data/bulk_data_e.html?"
+                   "format=csv&stationID={stn}&Year={yr}&timeframe=2"
+                   "&submit=Download+Data")
+        url = baseURL.format(stn=self.station,
+                             yr=year)
+        df = pd.read_csv(url, skiprows=nonHeadRows,
+                         index_col=0,
+                         parse_dates=True,
+                         dtype=dataTypes,
+                         na_values=['M','<31'])
+        return df
 
-def AddYears(df, sYear=None, eYear=None, city=0):
-    """Merge desired years from online database,
+    def Update(df, sYear=None, eYear=None, city=0):
+        """Merge desired years from online database,
 
-    df:    dataframe of daily data
-    sYear: (opt) start year, defaults to eYear
-    eYear: (opt) end year, defaults to current year
-    city:  (opt) City to retrieve. Defaults to first city in list.
-    Returns updated dataframe
-    """
-    if (eYear is None):
-        eYear = time.localtime().tm_year
-    if (sYear is None):
-        sYear = eYear
-    for theYear in range(sYear, eYear+1):
-        tf = GetData(theYear, city)
-        nf = tf.combine_first(df)
-    nf.city = df.city
-    nf.period = df.period
-    nf.type = df.type
-    nf.url = df.url
-    nf.id = df.id
-    nf.station = df.station
-    return nf
+        df:    dataframe of daily data
+        sYear: (opt) start year, defaults to eYear
+        eYear: (opt) end year, defaults to current year
+        city:  (opt) City to retrieve. Defaults to first city in list.
+        Returns updated dataframe
+        """
+        if (eYear is None):
+            eYear = time.localtime().tm_year
+        if (sYear is None):
+            sYear = eYear
+        for theYear in range(sYear, eYear+1):
+            tf = GetData(theYear, city)
+            nf = tf.combine_first(df)
+        nf.city = df.city
+        nf.period = df.period
+        nf.type = df.type
+        nf.url = df.url
+        nf.id = df.id
+        nf.station = df.station
+        return nf
 
 def RawToDF(city=0, header=25):
     """Process all data in a directory, returning a data frame.
