@@ -82,24 +82,37 @@ class WxDF(pd.DataFrame):
 
     _cf = None  # city information
 
-    def __init__(self, id=0):
+    def __init__(self, *args, **kwargs):
         if WxDF._cf is None:
             WxDF._cf = pd.read_csv('Cities.csv',
                               header=0,
                               skipinitialspace=True,
                               index_col=False)
-        df = pd.read_csv(basepath+WxDF._cf.path[id],
-                                         index_col=0,
-                                         header=0,
-                                         dtype=WxDF._dataTypes,
-                                         parse_dates=True)
-        super(WxDF, self).__init__(df)
-        self.city = WxDF._cf.city[id]
-        self.url = WxDF._cf.path[id]
-        self.station = WxDF._cf.station[id]
-        self.id = id
-        self.type = 'daily'
-        self.period = 'daily'
+        if len(args) == 0 or type(args[0]) == int:
+            if len(args) == 0: id = 0
+            else: id = args[0]
+            if len(args) == 2 and type(args[1]) == pd.DataFrame:
+                df = args[1]
+            else:
+                df = pd.read_csv(basepath+WxDF._cf.path[id],
+                                 index_col=0,
+                                 header=0,
+                                 dtype=WxDF._dataTypes,
+                                 parse_dates=True)
+            super(WxDF, self).__init__(df)
+            self.city = WxDF._cf.city[id]
+            self.path = WxDF._cf.path[id]
+            self.station = WxDF._cf.station[id]
+            self.id = id
+            self.type = 'daily'
+            self.period = 'daily'
+        else:
+            super(WxDF, self).__init__(*args, **kwargs)
+            self.city = ''
+            self.type = ''
+            self.path = ''
+            self.period = ''
+
 
     @property
     def _constructor(self):
@@ -118,11 +131,12 @@ class WxDF(pd.DataFrame):
                 st = st + '{:.1f}'.format(self[c].iloc[r]).rjust(num)
             return st
 
+        hdgs = '    Undefined'
         if not hasattr(self, 'period'):
             num = min(3, len(self.columns))
             lbl = list(self.columns[0:num])
             hdgs = [l.rjust(max(7,len(l))) for l in lbl]
-        elif self.period == 'daily':
+        elif self.period == 'daily' or len(self.columns)==26:
             cols = [4, 6, 8, 18]
             lbl = list(self.columns[cols])
             hdgs = ['Max Temp','Min Temp','Mean Temp','Precip']
@@ -134,11 +148,11 @@ class WxDF(pd.DataFrame):
         elif self.period == 'annual':
             lbl = list(self.columns)
             hdgs = [l.rjust(max(7,len(l))) for l in lbl]
-        last = GetLastDay(self)
-        first = GetFirstDay(self)
+        last = self.GetLastDay()
+        first = self.GetFirstDay()
         s = ''
-        if hasattr(self, 'city'):
-            s = 'City: ' + self.city + "  Type: " + self.type + '\n'
+        if hasattr(self, 'city') and self.city is not None:
+            s = "City: {0}  Type: {1}\n".format(self.city, self.type)
         s = s + "Date        " + "  ".join(hdgs)
         if first > 0:
             s = '\n'.join([s, GetLine(0), '...', GetLine(first-1)])
@@ -161,16 +175,10 @@ class WxDF(pd.DataFrame):
     def Str(self):
         print(self.__str__)
 
-    def List(self):
-        for i in len(self._cf):
-            print(i, self._cf[i].city, self._cf[i].station)
-
     def _GetData(self, year=None):
         """Get a year's worth of data from Environment Canada site.
 
         year: (opt) Year to retrieve. Defaults to current year.
-        city: (opt) City to retrieve. Defaults to first city in list.
-        Returns Pandas data frame with daily data.
         """
         if year is None:
             year = time.localtime().tm_year
@@ -184,31 +192,133 @@ class WxDF(pd.DataFrame):
                          parse_dates=True,
                          dtype=self._dataTypes,
                          na_values=['M','<31'])
-        return df
+        return WxDF(self.id, df)
 
-    def Update(df, sYear=None, eYear=None, city=0):
+    def Update(self, sYear=None, eYear=None):
         """Merge desired years from online database,
 
         df:    dataframe of daily data
         sYear: (opt) start year, defaults to eYear
         eYear: (opt) end year, defaults to current year
-        city:  (opt) City to retrieve. Defaults to first city in list.
         Returns updated dataframe
         """
+        def Combine(orig, new):
+            for row in new.index:
+                orig[row] = new[row]
+
         if (eYear is None):
             eYear = time.localtime().tm_year
         if (sYear is None):
-            sYear = eYear
+            sYear = self.index[self.GetLastDay()].year
         for theYear in range(sYear, eYear+1):
-            tf = GetData(theYear, city)
-            nf = tf.combine_first(df)
-        nf.city = df.city
-        nf.period = df.period
-        nf.type = df.type
-        nf.url = df.url
-        nf.id = df.id
-        nf.station = df.station
-        return nf
+            nf = self._GetData(theYear)
+            Combine(self, nf)
+
+    def Save(self):
+        """Save consolidated weather data into a .csv file
+
+        df:   data frame of daily weather to save
+        city: (opt) City to retrieve. Defaults to first city in list.
+
+        Assumes data saveable at /basepath/city/Data/
+        """
+        file = "".join([basepath, self.path])
+        self.to_csv(file,
+              float_format="% .1f")
+
+    def GetFirstDay(self):
+        """Return index to first day with valid data.
+
+        Parameters
+        ----------
+        df : dataframe containing daily data
+
+        Returns
+        -------
+        Integer: df.iloc[i] will give data on first day.
+        """
+        col = min(4, len(self.columns)-1)
+        for i in range(len(self.index)):
+            if not np.isnan(self.iat[i,col]): break
+        return i
+
+    def GetLastDay(self):
+        """Return index to last day with valid data.
+
+        Parameters
+        ----------
+        df : dataframe containing daily data
+
+        Returns
+        -------
+        Integer: df.iloc[i] will give data on last day.
+        """
+        col = min(4, len(self.columns)-1)
+        for i in range(len(self.index)-1,-1,-1):
+            if not np.isnan(self.iat[i,col]): break
+        return i
+
+    def GetMonths(self, col, func=np.mean):
+        """Convert daily data to monthly data
+
+        df:    dataframe containing daily data
+        col:   column to be combined
+        func:  (opt) function to use for combining. Defaults to mean (average)
+        Returns dataframe with the grouped monthly data in each columns
+
+        Only works for 1 column at a time due to extra complexity of multi-level
+        axes when months are already columns.
+        """
+
+        colNames = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr',
+                    5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug',
+                    9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
+
+        label = self.columns[col]
+        avgs = self.pivot_table(values=[label],
+                              index=['Year'],
+                              columns=['Month'],
+                              aggfunc=func)
+        avgs = avgs[label]  # turn into simple dataframe for simplicity
+        avgs.rename(columns=colNames, inplace=True)
+        avgs.city = self.city
+        avgs.period = 'monthly'
+        avgs.type = func.__name__ + ' ' + label
+        return avgs
+
+
+    def GetYears(self, cols=[4, 6, 8], func=np.mean):
+        """Convert daily data to yearly data.
+
+        df:    dataframe containing daily data
+        cols:  (opt) columns to be combined. Defaults to min, max, avg temps
+        func:  (opt) function to use for combining. Defaults to mean (average)
+        Returns dataframe with the grouped annual data
+        """
+        labels = self.columns[cols]
+        yf = self.pivot_table(values=list(labels),
+                            index=['Year'],
+                            aggfunc=func)
+
+        # Now ma
+        cyr = self.Year[-1]  # get current year
+        lyr = cyr-1
+        dfc = self.loc[lambda df: df.Year == cyr]
+        c = dfc.count()  # days in current year
+
+        dfl = self.loc[lambda df: df.Year == lyr]
+        dfl = dfl.iloc[:c[labels[0]]] # make number of days same as current year
+        pl = dfl.pivot_table(values=list(labels),
+                            index=['Year'],
+                            aggfunc=func)
+        # adjust current year by last year's change from current day to year end
+        for i in range(len(labels)):
+            yf.iloc[-1, i] = (yf.iloc[-2, i] - pl.iloc[0, i]) + yf.iloc[-1, i]
+
+        yf.city = self.city
+        yf.period = 'annual'
+        yf.type = func.__name__
+        return yf
 
 def RawToDF(city=0, header=25):
     """Process all data in a directory, returning a data frame.
@@ -239,132 +349,6 @@ def RawToDF(city=0, header=25):
             df = pd.concat([df, tf])
     return df
 
-def SaveDF(df, city=0):
-    """Save consolidated weather data into a .csv file
-
-    df:   data frame of daily weather to save
-    city: (opt) City to retrieve. Defaults to first city in list.
-
-    Assumes data saveable at /basepath/city/Data/
-    """
-    file = "/".join([basepath, stationName[city], "Data/complete.csv"])
-    df.to_csv(file,
-              float_format="% .1f")
-
-def LoadDF(id=0):
-    """Load weather data into a data frame
-
-    city: (opt) City to retrieve. Defaults to first city in list.
-
-    Assumes data located at /basepath/city/Data/
-    """
-    file = "/".join([basepath, stationName[id], "Data/complete.csv"])
-    df = pd.read_csv(file,
-                     index_col=0,
-                     header=0,
-                     dtype=dataTypes,
-                     parse_dates=True)
-    df.id = id
-    df.city = stationName[id]
-    df.station = stationID[id]
-    df.url = file
-    df.period = 'daily'
-    df.type = 'daily'
-    df.__class__.__str__ = _Str
-    return df
-
-
-def GetMonths(df, col, func=np.mean):
-    """Convert daily data to monthly data
-
-    df:    dataframe containing daily data
-    col:   column to be combined
-    func:  (opt) function to use for combining. Defaults to mean (average)
-    Returns dataframe with the grouped monthly data in each columns
-
-    Only works for 1 column at a time due to extra complexity of multi-level
-    axes when months are already columns.
-    """
-
-    colNames = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr',
-                5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug',
-                9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
-
-    label = df.columns[col]
-    avgs = df.pivot_table(values=[label],
-                          index=['Year'],
-                          columns=['Month'],
-                          aggfunc=func)
-    avgs = avgs[label]  # turn into simple dataframe for simplicity
-    avgs.rename(columns=colNames, inplace=True)
-    avgs.city = df.city
-    avgs.period = 'monthly'
-    avgs.type = func.__name__ + ' ' + label
-    return avgs
-
-
-def GetYears(df, cols=[4, 6, 8], func=np.mean):
-    """Convert daily data to yearly data.
-
-    df:    dataframe containing daily data
-    cols:  (opt) columns to be combined. Defaults to min, max, avg temps
-    func:  (opt) function to use for combining. Defaults to mean (average)
-    Returns dataframe with the grouped annual data
-    """
-    labels = df.columns[cols]
-    yf = df.pivot_table(values=list(labels),
-                        index=['Year'],
-                        aggfunc=func)
-    cyr = df.Year[-1]  # get current year
-    lyr = cyr-1
-    dfc = df.loc[lambda df: df.Year == cyr]
-    c = dfc.count()
-
-    dfl = df.loc[lambda df: df.Year == lyr]
-    dfl = dfl.iloc[:c[labels[0]]] # make number of days same as current year
-    pl = dfl.pivot_table(values=list(labels),
-                        index=['Year'],
-                        aggfunc=func)
-    # adjust current year by last year's change from current day to year end
-    for i in range(len(labels)):
-        yf.iloc[-1, i] = (yf.iloc[-2, i] - pl.iloc[0, i]) + yf.iloc[-1, i]
-
-    yf.city = df.city
-    yf.period = 'annual'
-    yf.type = func.__name__
-    return yf
-
-def GetFirstDay(df):
-    """Return index to first day with valid data.
-
-    Parameters
-    ----------
-    df : dataframe containing daily data
-
-    Returns
-    -------
-    Integer: df.iloc[i] will give data on first day.
-    """
-    col = min(4, len(df.columns)-1)
-    for i in range(len(df.index)):
-        if not np.isnan(df.iat[i,col]): break
-    return i
-
-def GetLastDay(df):
-    """Return index to last day with valid data.
-
-    Parameters
-    ----------
-    df : dataframe containing daily data
-
-    Returns
-    -------
-    Integer: df.iloc[i] will give data on last day.
-    """
-    col = min(4, len(df.columns)-1)
-    for i in range(len(df.index)-1,-1,-1):
-        if not np.isnan(df.iat[i,col]): break
-    return i
 
 def StackPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
