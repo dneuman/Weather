@@ -320,36 +320,6 @@ class WxDF(pd.DataFrame):
         yf.type = func.__name__
         return yf
 
-def RawToDF(city=0, header=25):
-    """Process all data in a directory, returning a data frame.
-
-    Use if you have downloaded data from Environment Canada separately
-    with wget. Assumes data in .csv format.
-
-    city:   (opt) City to retrieve. Defaults to first city in list.
-    header: (opt) Number of header rows in each .csv file. Defaults to 25
-    """
-    template = "/".join([basepath, stationName[city],"Raw/*.csv"])
-    first = True
-    files = glob.glob(template)
-    if len(files)==0:
-        print("no files for: {0}".format(template))
-        return
-    for file in files:
-        tf = pd.read_csv(file,
-                         index_col=0,
-                         dtype=dataTypes,
-                         parse_dates=True,
-                         na_values=['M','<31'],
-                         skiprows=header)
-        if first:
-            df = tf
-            first = False
-        else:
-            df = pd.concat([df, tf])
-    return df
-
-
 def StackPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
 
@@ -405,12 +375,12 @@ def StackPlot(df, cols=2, title='', fignum=20):
 
 
 
-def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
+def TempPlot(df, size=15, fignum=1, showmean=True,
              cols=[4, 6, 8],
              annotatePDO=False):
     """Plot indicated columns of data, with optional annotations"""
 
-    yr = GetYears(df, cols=cols)
+    yr = df.GetYears(cols=cols)
     styles = [['r-', 'ro-'], ['c-', 'co-'], ['k-', 'ko-']]
     # Set baseline annotation line
     bx = [yr.index[0], yr.index[0], yr.index[30], yr.index[30]]
@@ -445,7 +415,7 @@ def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
     # Draw chart
     plt.ylabel('Temperature Change From Baseline (°C)')
     plt.xlabel('Year')
-    plt.title("Change in " + stationName[city] + "'s Annual Temperature")
+    plt.title("Change in " + df.city + "'s Annual Temperature")
     # Annotate chart
     plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
     plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
@@ -469,10 +439,10 @@ def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
     return
 
 
-def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2, city=0):
+def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2):
     """Simple smoothed plots with optional baseline.
     """
-    yf = GetYears(df, cols=cols)
+    yf = df.GetYears(cols=cols)
     if change:
         for col in yf.columns:
             yf[col] = yf[col] - yf[col][:30].mean()
@@ -483,20 +453,20 @@ def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2, city=0):
         plt.plot(y, '-', alpha=0.5, label=yf.columns[i])
     plt.ylabel('Temperature Change from Baseline (°C)')
     plt.xlabel('Year')
-    plt.title("Change in " + stationName[city] + "'s Annual Temperature")
+    plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
     plt.show()
     return
 
 
-def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
+def ErrorPlot(df, size=31, cols=[8], fignum=10):
     """Show standard deviation of temperature from trend.
 
     df: DataFrame containing Environment Canada data with standard columns.
     cols: list of columns to use. Currently only uses first column supplied.
     size: size of moving average window
     """
-    yf = GetYears(df, cols)
+    yf = df.GetYears(cols)
     yf = yf - yf.iloc[:30].mean()
     col = yf.columns[0]
     ma = sm.WeightedMovingAverage(yf[col], size)
@@ -505,7 +475,7 @@ def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
     fig = plt.figure(fignum)
     fig.clear()
     plt.plot(yf[col], 'ko-', lw=1, alpha=0.2,
-             label=(stationName[city]+' '+col))
+             label=(df.city+' '+col))
     plt.plot(ma, 'r-', alpha=0.5, lw=2, label='Weighted Moving Average')
     plt.fill_between(ma.index, ma.values+std, ma.values-std,
                      color='red', alpha=0.15, label='68%')
@@ -518,11 +488,11 @@ def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
     plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
     plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
     plt.ylabel('Temperature Change from Baseline (°C)')
-    plt.title("Change in " + stationName[city] + "'s Annual Temperature")
+    plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.show()
 
 
-def RecordsPlot(df, fignum=5, city=0):
+def RecordsPlot(df, fignum=5):
     """Plot all records in daily data.
 
     df:     DataFrame containing daily data with standard columns.
@@ -576,7 +546,7 @@ def RecordsPlot(df, fignum=5, city=0):
                  p[2],
                  label=p[0], zorder=p[3])
     # Plot records data
-    plt.title('Daily Weather Records for ' + stationName)
+    plt.title('Daily Weather Records for ' + df.city)
     plt.legend(numpoints=1,
                bbox_to_anchor=(1.07, 1), loc='upper right', borderaxespad=0.)
     plt.axis([1940, 2020, '20160101', '20161231'])
@@ -591,13 +561,13 @@ def RecordsPlot(df, fignum=5, city=0):
     plt.axis([1940, 2020, 0, 50])
     plt.stackplot(x, y)
     plt.legend(counts.columns)
-    plt.title('Records per Year for ' + stationName[city])
+    plt.title('Records per Year for ' + df.city)
     plt.show()
     print('Done')
     return
 
 
-def PrecipPlot(df, fignum=6, city=0):
+def PrecipPlot(df, fignum=6):
     """Go through all data and plot every day where it rained or snowed.
 
     df:     DataFrame containing Environment Canada data with standard columns.
@@ -632,7 +602,7 @@ def PrecipPlot(df, fignum=6, city=0):
                  p[2],
                  label=p[0], zorder=p[3])
     # Plot records data
-    plt.title('Days with Precipitation in '+ stationName[city])
+    plt.title('Days with Precipitation in '+ df.city)
     plt.legend(numpoints=1,
                bbox_to_anchor=(1.07, 1), loc='upper right', borderaxespad=0.)
     plt.axis([1940, 2020, '20160101', '20161231'])
@@ -642,7 +612,7 @@ def PrecipPlot(df, fignum=6, city=0):
     return
 
 
-def SnowPlot(df, fignum=7, city=0):
+def SnowPlot(df, fignum=7):
     """
     Go through all data and plot first and last day of snow for the year.
 
@@ -699,7 +669,7 @@ def SnowPlot(df, fignum=7, city=0):
         for i in a.index:
             a[i] = dStart + pd.Timedelta(days=int(a[i] - 0.5))
         plt.plot(a, 'c-', linewidth=4)
-    plt.title('First and Last Snowfall for ' + stationName[city])
+    plt.title('First and Last Snowfall for ' + df.city)
     plt.legend(numpoints=1,
                loc='center left')
     plt.axis([1940, 2020, '20160101', '20161231'])
@@ -707,7 +677,7 @@ def SnowPlot(df, fignum=7, city=0):
     print('Done')
     return
 
-def HotDaysPlot(df, city, fignum=8):
+def HotDaysPlot(df, fignum=8):
     """
     Plots a bar chart of days each year over 25 and 30 °C.
 
@@ -734,20 +704,20 @@ def HotDaysPlot(df, city, fignum=8):
     # TODO fix prob with rows being diff length due to years not in list
     p2 = plt.bar(ind, warmc.iloc[:,0], width, color='orange')
     plt.legend((p2[0], p1[0]), ('Days > 25°C', 'Days > 30°C'))
-    plt.title("Warm and Hot Days for "+stationName[city])
+    plt.title("Warm and Hot Days for "+df.city)
     plt.show()
 
-def CompareWeighting(df, cols=[8], size=31, fignum=8, city=0):
+def CompareWeighting(df, cols=[8], size=31, fignum=8):
     """Compare various weighting windows on real data.
     """
-    yf = GetYears(df, cols)
+    yf = df.GetYears(cols)
     yf = yf - yf.iloc[:30].mean()
     col = yf.columns[0]
     y = yf[col]
     fig = plt.figure(fignum)
     fig.clear()
     plt.plot(y, 'ko-', lw=1, alpha=0.15,
-             label=(stationName[city]+' '+col))
+             label=(df.city+' '+col))
 
     ma = sm.WeightedMovingAverage(y, size, winType=sm.Triangle)
     plt.plot(ma, '-', alpha=0.8, lw=1, label='Triangle')
@@ -791,14 +761,14 @@ def CompareSmoothing(df, cols=[8],
     order: order of the lowess polynomial
     lags:     number of time lags to use for SSA
     """
-    yf = GetYears(df, cols)
+    yf = df.GetYears(cols)
     yf = yf - yf.iloc[:30].mean()
     col = yf.columns[0]
     y = yf[col]
     fig = plt.figure(fignum)
     fig.clear()
     plt.plot(y, 'ko-', lw=1, alpha=0.15,
-             label=(stationName[city]+' '+col))
+             label=(df.city+' '+col))
     if pts==None:
         p = np.ceil(frac * len(y))
     else:
