@@ -7,6 +7,29 @@ This is a temporary script file.
 import numpy as np
 import pandas as pd
 
+def Triangle(size, clip=1.0):
+    """Return a triangle weighting window, with optional clipping.
+
+    Paramters
+    ---------
+    size : int
+        Length of the returned weights
+
+    **Optionals**
+
+    clip : float
+        Any weight above `clip` will be forced to `clip`.
+    """
+    w = np.bartlett(size+2)
+    w = w[1:-1]  # remove zeros at endpoints
+    w = np.array([min(clip, i) for i in w])
+    return (w / max(w))
+
+def Hanning(size):
+    w = np.hanning(size+2)
+    w = np.array(w[1:-1])  # remove zeros at endpoints
+    return (w / max(w))
+
 def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     """Fits a nonparametric regression curve to a scatterplot.
 
@@ -109,29 +132,6 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     else:
         return pd.Series(yEst, index=data.index, name='Trend')
 
-def Triangle(size, clip=1.0):
-    """Return a triangle weighting window, with optional clipping.
-
-    Paramters
-    ---------
-    size : int
-        Length of the returned weights
-
-    **Optionals**
-
-    clip : float
-        Any weight above `clip` will be forced to `clip`.
-    """
-    w = np.bartlett(size+2)
-    w = w[1:-1]  # remove zeros at endpoints
-    w = np.array([min(clip, i) for i in w])
-    return (w / max(w))
-
-def Hanning(size):
-    w = np.hanning(size+2)
-    w = np.array(w[1:-1])  # remove zeros at endpoints
-    return (w / max(w))
-
 def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
     """Apply a weighted moving average on the supplied series.
 
@@ -140,16 +140,13 @@ def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
     s : pandas.Series
         data to be averaged
     size : integer
-        how wide a triangular window to use
-
-    **Optionals**
-
-    pad : Boolean
+        how wide a window to use
+    pad : Boolean (optional, default = True)
         flag determining whether to pad beginning and end of data with a
         weighted average of the last `size` points. This provides better
         smoothing at the beginning and end of the line, but it tends to have
         zero slope.
-    winType : Function
+    winType : Function (optional, default = Hanning)
         Window function that takes an integer (window size) and returns a list
         of weights to be applied to the data. The default is Hanning, a
         weighted cosine with non-zero endpoints. Other possible windows are:
@@ -158,7 +155,9 @@ def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
         * np.blackman (3 cosines creating taper)
         * np.hamming (weighted cosine)
         * np.hanning (weighted cosine with endpoints of 0)
-    wts : list
+        * Triangle (triangle with non-zero enpoints, and option to
+                    clip top of triangle)
+    wts : list (optional, default = None)
         List of weights to use. `size` becomes the length of wts. Use this
         option to provide a custom weighting function. The length of wts
         should be odd, but this is not enforced.
