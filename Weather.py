@@ -6,11 +6,10 @@
    * Setup:
 
    * Data Management:
-       * GetData - Get raw data from Environment Canada
-       * AddYears - Add years to data
-       * RawToDF - Load raw data obtained by wget
-       * SaveDF - Save consolidated data
-       * LoadDF - Load consolidated data
+       * Update - Add years to data
+       * Save - Save consolidated data
+       * GetFirstDay - returns index to first day of data
+       * GetLastDay - Returns index to last day of data
    * Data Combining:
        * GetMonths - Return data grouped by months
        * GetYears - Return data grouped by years
@@ -24,7 +23,6 @@
        * SnowPlot - Show snowfall
        * HotDaysPlot - Show number of hot days per year
    * Miscellaneous:
-       * GetLastDay - Returns index to last day of data
        * CompareSmoothing - Show how Lowess and WMA compare for trends
        * CompareWeighting - Show how different weight windows compare
 
@@ -32,7 +30,6 @@
 """
 
 import time
-import glob
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -47,10 +44,39 @@ plt.style.use('ggplot')
 # user styles can be placed in ~/.matplotlib/
 
 basepath = '/Users/Dan/Documents/Weather/Stations/'
-stationID = [4333]  # Ottawa
-stationName = ['Ottawa']
-nonHeadRows = 25
-dataTypes = { #0: np.datetime64,  # "Date/Time" (not used since it is index)
+
+monthS = ['Jan', 'Feb', 'Mar', 'Apr',
+          'May', 'Jun', 'Jul', 'Aug',
+          'Sep', 'Oct', 'Nov', 'Dec']
+monthL = ['January', 'Febuary', 'March', 'April',
+          'May', 'June', 'July', 'August',
+          'September', 'October', 'November', 'December']
+monthN = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4,
+          'May':5, 'Jun':6, 'Jul':7, 'Aug':8,
+          'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12,
+          'January':1, 'Febuary':2, 'March':3, 'April':4,
+          'May':5, 'June':6, 'July':7, 'August':8,
+          'September':9, 'October':10, 'November':11, 'December':12}
+
+class WxDF(pd.DataFrame):
+    """Weather data management class
+
+    Requires a table of cities (at least one) in the same directory as the
+    calling program. The table must be a CSV file named 'Cities.csv' with the
+    following headings:
+        city, station, path
+
+    Example
+    -------
+    ::
+        df = WxDF(0)
+        df
+
+    loads the saved for the first city in the Cities.csv table. Typing `df` by
+    itself in iPython will print a summary of the data.
+    """
+    _nonHeadRows = 25
+    _dataTypes = { #0: np.datetime64,  # "Date/Time" (not used as it is index)
              1: int,      # "Year"
              2: int,      # "Month",
              3: int,      # "Day",
@@ -78,214 +104,266 @@ dataTypes = { #0: np.datetime64,  # "Date/Time" (not used since it is index)
              25: float,   # "Spd of Max Gust (km/h)",
              26: str      # "Spd of Max Gust Flag"
              }
+    _metadata = ['city','period','type','path','station','id']
 
-def _Str(self):
-    """Return a summary of the data
-    """
-    cols = [4, 6, 8, 18]
-    lbl = self.columns[cols]
-    s = "Date        Max Temp  Min Temp Mean Temp    Precip"
-    template = "{0} {p[0]:9.1f} {p[1]:9.1f} {p[2]:9.1f} {p[3]:9.1f}"
-    last = GetLastDay(self)
-    try:
-        s = '\n'.join(["City: "+self.city, s])
-    except NameError:
-        pass
-    for i in range(5):
-        s = '\n'.join([s, template.format(self.index[i].date(),
-                                          p=self[lbl].iloc[i])])
-    s = '\n'.join([s,'...'])
-    for i in range(6):
-        s = '\n'.join([s, template.format(self.index[last-4+i].date(),
-                                          p=self[lbl].iloc[last-4+i])])
-    s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
-                                           len(self.columns))])
-    return s
+    _cf = None  # city information
 
-def Str(df):
-    print(_Str(df))
+    def __init__(self, *args, **kwargs):
+        """Initialize WxDF object
 
-
-
-def GetData(year=None, city=0):
-    """Get a year's worth of data from Environment Canada site.
-
-    year: (opt) Year to retrieve. Defaults to current year.
-    city: (opt) City to retrieve. Defaults to first city in list.
-    Returns Pandas data frame with daily data.
-    """
-    if year is None:
-        year = time.localtime().tm_year
-    baseURL = ("http://climate.weather.gc.ca/climate_data/bulk_data_e.html?"
-               "format=csv&stationID={stn}&Year={yr}&timeframe=2"
-               "&submit=Download+Data")
-    url = baseURL.format(stn=stationID[city],
-                         yr=year)
-    df = pd.read_csv(url, skiprows=nonHeadRows,
-                     index_col=0,
-                     parse_dates=True,
-                     dtype=dataTypes,
-                     na_values=['M','<31'])
-    return df
-
-def AddYears(df, sYear=None, eYear=None, city=0):
-    """Merge desired years from online database,
-
-    df:    dataframe of daily data
-    sYear: (opt) start year, defaults to eYear
-    eYear: (opt) end year, defaults to current year
-    city:  (opt) City to retrieve. Defaults to first city in list.
-    Returns updated dataframe
-    """
-    if (eYear is None):
-        eYear = time.localtime().tm_year
-    if (sYear is None):
-        sYear = eYear
-    for theYear in range(sYear, eYear+1):
-        tf = GetData(theYear, city)
-        df = tf.combine_first(df)
-    return df
-
-def RawToDF(city=0, header=25):
-    """Process all data in a directory, returning a data frame.
-
-    Use if you have downloaded data from Environment Canada separately
-    with wget. Assumes data in .csv format.
-
-    city:   (opt) City to retrieve. Defaults to first city in list.
-    header: (opt) Number of header rows in each .csv file. Defaults to 25
-    """
-    template = "/".join([basepath, stationName[city],"Raw/*.csv"])
-    first = True
-    files = glob.glob(template)
-    if len(files)==0:
-        print("no files for: {0}".format(template))
-        return
-    for file in files:
-        tf = pd.read_csv(file,
-                         index_col=0,
-                         dtype=dataTypes,
-                         parse_dates=True,
-                         na_values=['M','<31'],
-                         skiprows=header)
-        if first:
-            df = tf
-            first = False
+        Parameters
+        ----------
+        id : int (optional, default 0)
+            Row in the Cities.csv table to use to initialize data
+        df : DataFrame (optional)
+            Use this dataframe if provided, otherwise load data from disk
+            using the path found in Cities.csv
+        """
+        if WxDF._cf is None:
+            WxDF._cf = pd.read_csv('Cities.csv',
+                              header=0,
+                              skipinitialspace=True,
+                              index_col=False)
+        if len(args) == 0 or type(args[0]) == int:
+            if len(args) == 0: id = 0
+            else: id = args[0]
+            if len(args) == 2 and type(args[1]) == pd.DataFrame:
+                df = args[1]
+            else:
+                df = pd.read_csv(basepath+WxDF._cf.path[id],
+                                 index_col=0,
+                                 header=0,
+                                 dtype=WxDF._dataTypes,
+                                 parse_dates=True)
+            super(WxDF, self).__init__(df)
+            self.city = WxDF._cf.city[id]
+            self.path = WxDF._cf.path[id]
+            self.station = WxDF._cf.station[id]
+            self.id = id
+            self.type = 'daily'
+            self.period = 'daily'
         else:
-            df = pd.concat([df, tf])
-    return df
+            super(WxDF, self).__init__(*args, **kwargs)
+            self.city = ''
+            self.type = ''
+            self.path = ''
+            self.period = ''
 
-def SaveDF(df, city=0):
-    """Save consolidated weather data into a .csv file
 
-    df:   data frame of daily weather to save
-    city: (opt) City to retrieve. Defaults to first city in list.
+    @property
+    def _constructor(self):
+        return WxDF
 
-    Assumes data saveable at /basepath/city/Data/
-    """
-    file = "/".join([basepath, stationName[city], "Data/complete.csv"])
-    df.to_csv(file,
+    def __str__(self):
+        """Return a summary of the data
+        """
+        def GetLine(r):
+            if hasattr(self.index[0], 'year'):
+                st = str(self.index[r].date()).ljust(10)
+            else:
+                st = str(self.index[r]).ljust(10)
+            for i, c in enumerate(lbl):
+                num = max(7, len(hdgs[i])+2)
+                st = st + '{:.1f}'.format(self[c].iloc[r]).rjust(num)
+            return st
+
+        hdgs = '    Undefined'
+        if not hasattr(self, 'period'):
+            num = min(3, len(self.columns))
+            lbl = list(self.columns[0:num])
+            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+        elif self.period == 'daily' or len(self.columns)==26:
+            cols = [4, 6, 8, 18]
+            lbl = list(self.columns[cols])
+            hdgs = ['Max Temp','Min Temp','Mean Temp','Precip']
+            hdgs = [h.rjust(max(7,len(h))) for h in hdgs]
+        elif self.period == 'monthly':
+            cols = [0, 5, 11]
+            lbl = list(self.columns[cols])
+            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+        elif self.period == 'annual':
+            lbl = list(self.columns)
+            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+        last = self.GetLastDay()
+        first = self.GetFirstDay()
+        s = ''
+        if hasattr(self, 'city') and self.city is not None:
+            s = "City: {0}  Type: {1}\n".format(self.city, self.type)
+        s = s + "Date        " + "  ".join(hdgs)
+        if first > 0:
+            s = '\n'.join([s, GetLine(0), '...', GetLine(first-1)])
+        for i in range(first, first+5):
+            s = '\n'.join([s, GetLine(i)])
+        s = '\n'.join([s,'...'])
+        num = min(len(self.index), last+2)
+        for i in range(last-4, num):
+            s = '\n'.join([s, GetLine(i)])
+        s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
+                                               len(self.columns))])
+        if hasattr(self, 'city'):
+            if hasattr(self.index[first], 'year'):
+                years = self.index[last].year - self.index[first].year
+            else:
+                years = self.index[last] - self.index[first]
+            s = s + '  Years: ' + str(years+1)
+        return s
+
+    def Str(self):
+        print(self.__str__)
+
+    def _GetData(self, year=None):
+        """Get a year's worth of data from Environment Canada site.
+
+        year: (opt) Year to retrieve. Defaults to current year.
+        """
+        if year is None:
+            year = time.localtime().tm_year
+        baseURL = ("http://climate.weather.gc.ca/climate_data/bulk_data_e.html?"
+                   "format=csv&stationID={stn}&Year={yr}&timeframe=2"
+                   "&submit=Download+Data")
+        url = baseURL.format(stn=self.station,
+                             yr=year)
+        df = pd.read_csv(url, skiprows=self._nonHeadRows,
+                         index_col=0,
+                         parse_dates=True,
+                         dtype=self._dataTypes,
+                         na_values=['M','<31'])
+        return WxDF(self.id, df)
+
+    def Update(self, sYear=None, eYear=None):
+        """Merge desired years from online database,
+
+        df:    dataframe of daily data
+        sYear: (opt) start year, defaults to year of last data point
+        eYear: (opt) end year, defaults to current year
+        """
+        def Combine(orig, new):
+            for row in new.index:
+                orig.loc[row] = new.loc[row]
+
+        if (eYear is None):
+            eYear = time.localtime().tm_year
+        if (sYear is None):
+            sYear = self.index[self.GetLastDay()].year
+        for theYear in range(sYear, eYear+1):
+            nf = self._GetData(theYear)
+            Combine(self, nf)
+
+    def Save(self):
+        """Save consolidated weather data into a .csv file
+
+        df:   data frame of daily weather to save
+        city: (opt) City to retrieve. Defaults to first city in list.
+
+        Assumes data saveable at /basepath/city/Data/
+        """
+        # TODO: create directories if required
+        file = "".join([basepath, self.path])
+        self.to_csv(file,
               float_format="% .1f")
 
-def LoadDF(city=0):
-    """Load weather data into a data frame
+    def GetFirstDay(self):
+        """Return index to first day with valid data.
 
-    city: (opt) City to retrieve. Defaults to first city in list.
+        Parameters
+        ----------
+        df : dataframe containing daily data
 
-    Assumes data located at /basepath/city/Data/
-    """
-    file = "/".join([basepath, stationName[city], "Data/complete.csv"])
-    df = pd.read_csv(file,
-                     index_col=0,
-                     header=0,
-                     dtype=dataTypes,
-                     parse_dates=True)
-    return df
+        Returns
+        -------
+        Integer: df.iloc[i] will give data on first day.
+        """
+        col = min(4, len(self.columns)-1)
+        i=-1
+        for i in range(len(self.index)):
+            if not np.isnan(self.iat[i,col]): break
+        return i
 
+    def GetLastDay(self):
+        """Return index to last day with valid data.
 
-def GetMonths(df, col, func=np.mean):
-    """Convert daily data to monthly data
+        Parameters
+        ----------
+        df : dataframe containing daily data
 
-    df:    dataframe containing daily data
-    col:   column to be combined
-    func:  (opt) function to use for combining. Defaults to mean (average)
-    Returns dataframe with the grouped monthly data in each columns
+        Returns
+        -------
+        Integer: df.iloc[i] will give data on last day.
+        """
+        col = min(4, len(self.columns)-1)
+        i = len(self.index)-1
+        for i in range(len(self.index)-1,-1,-1):
+            if not np.isnan(self.iat[i,col]): break
+        return i
 
-    Only works for 1 column at a time due to extra complexity of multi-level
-    axes when months are already columns.
-    """
+    def GetMonths(self, col, func=np.mean):
+        """Convert daily data to monthly data
 
-    colNames = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr',
-                5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug',
-                9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
+        col:   column to be combined
+        func:  (opt) function to use for combining. Defaults to mean (average)
+        Returns dataframe with the grouped monthly data in each columns
 
-    label = df.columns[col]
-    avgs = df.pivot_table(values=[label],
-                          index=['Year'],
-                          columns=['Month'],
-                          aggfunc=func)
-    avgs = avgs[label]  # turn into simple dataframe for simplicity
-    avgs.rename(columns=colNames, inplace=True)
-    return avgs
+        Only works for 1 column at a time due to extra complexity of multi-level
+        axes when months are already columns.
+        """
 
+        label = self.columns[col]
+        avgs = self.pivot_table(values=[label],
+                              index=['Year'],
+                              columns=['Month'],
+                              aggfunc=func)
+        avgs = avgs[label]  # turn into simple dataframe for simplicity
+        avgs.rename(columns=monthS, inplace=True)
+        avgs.city = self.city
+        avgs.period = 'monthly'
+        avgs.type = func.__name__ + ' ' + label
+        return avgs
 
-def GetYears(df, cols=[4, 6, 8], func=np.mean):
-    """Convert daily data to yearly data.
+    def GetMonth(self, cols=[4, 6], month=None, func=np.mean):
+        """Convert daily data to yearly data for a particular month
 
-    df:    dataframe containing daily data
-    cols:  (opt) columns to be combined. Defaults to min, max, avg temps
-    func:  (opt) function to use for combining. Defaults to mean (average)
-    Returns dataframe with the grouped annual data
-    """
-    labels = df.columns[cols]
-    yr = df.pivot_table(values=list(labels),
-                        index=['Year'],
-                        aggfunc=func)
-    cyr = df.Year[-1]  # get current year
-    lyr = cyr-1
-    dfc = df.loc[lambda df: df.Year == cyr]
-    c = dfc.count()
+        """
+        if month is None:
+            month = time.localtime().tm_mon
+        labels = list(self.columns[cols])
+        yf = self.loc[lambda df: df.Month == month]
+        mf = yf.pivot_table(values=labels,
+                              index=['Year'],
+                              aggfunc=func)
+        return mf
 
-    dfl = df.loc[lambda df: df.Year == lyr]
-    dfl = dfl.iloc[:c[labels[0]]] # make number of days same as current year
-    pl = dfl.pivot_table(values=list(labels),
-                        index=['Year'],
-                        aggfunc=func)
-    # adjust current year by last year's change from current day to year end
-    for i in range(len(labels)):
-        yr.iloc[-1, i] = (yr.iloc[-2, i] - pl.iloc[0, i]) + yr.iloc[-1, i]
+    def GetYears(self, cols=[4, 6, 8], func=np.mean):
+        """Convert daily data to yearly data.
 
-    return yr
+        df:    dataframe containing daily data
+        cols:  (opt) columns to be combined. Defaults to min, max, avg temps
+        func:  (opt) function to use for combining. Defaults to mean (average)
+        Returns dataframe with the grouped annual data
+        """
+        labels = self.columns[cols]
+        yf = self.pivot_table(values=list(labels),
+                            index=['Year'],
+                            aggfunc=func)
 
-def GetFirstDay(df):
-    """Return index to first day with valid data.
+        # Now ma
+        cyr = self.Year[-1]  # get current year
+        lyr = cyr-1
+        dfc = self.loc[lambda df: df.Year == cyr]
+        c = dfc.count()  # days in current year
 
-    Parameters
-    ----------
-    df : dataframe containing daily data
+        dfl = self.loc[lambda df: df.Year == lyr]
+        dfl = dfl.iloc[:c[labels[0]]] # make number of days same as current year
+        pl = dfl.pivot_table(values=list(labels),
+                            index=['Year'],
+                            aggfunc=func)
+        # adjust current year by last year's change from current day to year end
+        for i in range(len(labels)):
+            yf.iloc[-1, i] = (yf.iloc[-2, i] - pl.iloc[0, i]) + yf.iloc[-1, i]
 
-    Returns
-    -------
-    Integer: df.iloc[i] will give data on first day.
-    """
-
-def GetLastDay(df):
-    """Return index to last day with valid data.
-
-    Parameters
-    ----------
-    df : dataframe containing daily data
-
-    Returns
-    -------
-    Integer: df.iloc[i] will give data on last day.
-    """
-    cyr = df.Year[-1]
-    dfc = df.loc[lambda df: df.Year == cyr]
-    c = len(dfc) - dfc.iloc[:,4].count()
-    return len(df) - c - 1
-
-
+        yf.city = self.city
+        yf.period = 'annual'
+        yf.type = func.__name__
+        return yf
 
 def StackPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
@@ -340,14 +418,12 @@ def StackPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-
-
-def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
+def TempPlot(df, size=15, fignum=1, showmean=True,
              cols=[4, 6, 8],
              annotatePDO=False):
     """Plot indicated columns of data, with optional annotations"""
 
-    yr = GetYears(df, cols=cols)
+    yr = df.GetYears(cols=cols)
     styles = [['r-', 'ro-'], ['c-', 'co-'], ['k-', 'ko-']]
     # Set baseline annotation line
     bx = [yr.index[0], yr.index[0], yr.index[30], yr.index[30]]
@@ -382,7 +458,7 @@ def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
     # Draw chart
     plt.ylabel('Temperature Change From Baseline (°C)')
     plt.xlabel('Year')
-    plt.title("Change in " + stationName[city] + "'s Annual Temperature")
+    plt.title("Change in " + df.city + "'s Annual Temperature")
     # Annotate chart
     plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
     plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
@@ -406,10 +482,10 @@ def TempPlot(df, size=15, fignum=1, showmean=True, city=0,
     return
 
 
-def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2, city=0):
+def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2):
     """Simple smoothed plots with optional baseline.
     """
-    yf = GetYears(df, cols=cols)
+    yf = df.GetYears(cols=cols)
     if change:
         for col in yf.columns:
             yf[col] = yf[col] - yf[col][:30].mean()
@@ -420,20 +496,20 @@ def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2, city=0):
         plt.plot(y, '-', alpha=0.5, label=yf.columns[i])
     plt.ylabel('Temperature Change from Baseline (°C)')
     plt.xlabel('Year')
-    plt.title("Change in " + stationName[city] + "'s Annual Temperature")
+    plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
     plt.show()
     return
 
 
-def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
+def ErrorPlot(df, size=31, cols=[8], fignum=3):
     """Show standard deviation of temperature from trend.
 
     df: DataFrame containing Environment Canada data with standard columns.
     cols: list of columns to use. Currently only uses first column supplied.
     size: size of moving average window
     """
-    yf = GetYears(df, cols)
+    yf = df.GetYears(cols)
     yf = yf - yf.iloc[:30].mean()
     col = yf.columns[0]
     ma = sm.WeightedMovingAverage(yf[col], size)
@@ -442,7 +518,7 @@ def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
     fig = plt.figure(fignum)
     fig.clear()
     plt.plot(yf[col], 'ko-', lw=1, alpha=0.2,
-             label=(stationName[city]+' '+col))
+             label=(df.city+' '+col))
     plt.plot(ma, 'r-', alpha=0.5, lw=2, label='Weighted Moving Average')
     plt.fill_between(ma.index, ma.values+std, ma.values-std,
                      color='red', alpha=0.15, label='68%')
@@ -455,11 +531,11 @@ def ErrorPlot(df, size=31, cols=[8], fignum=10, city=0):
     plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
     plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
     plt.ylabel('Temperature Change from Baseline (°C)')
-    plt.title("Change in " + stationName[city] + "'s Annual Temperature")
+    plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.show()
 
 
-def RecordsPlot(df, fignum=5, city=0):
+def RecordsPlot(df, fignum=4):
     """Plot all records in daily data.
 
     df:     DataFrame containing daily data with standard columns.
@@ -513,7 +589,7 @@ def RecordsPlot(df, fignum=5, city=0):
                  p[2],
                  label=p[0], zorder=p[3])
     # Plot records data
-    plt.title('Daily Weather Records for ' + stationName)
+    plt.title('Daily Weather Records for ' + df.city)
     plt.legend(numpoints=1,
                bbox_to_anchor=(1.07, 1), loc='upper right', borderaxespad=0.)
     plt.axis([1940, 2020, '20160101', '20161231'])
@@ -528,13 +604,13 @@ def RecordsPlot(df, fignum=5, city=0):
     plt.axis([1940, 2020, 0, 50])
     plt.stackplot(x, y)
     plt.legend(counts.columns)
-    plt.title('Records per Year for ' + stationName[city])
+    plt.title('Records per Year for ' + df.city)
     plt.show()
     print('Done')
     return
 
 
-def PrecipPlot(df, fignum=6, city=0):
+def PrecipPlot(df, fignum=5):
     """Go through all data and plot every day where it rained or snowed.
 
     df:     DataFrame containing Environment Canada data with standard columns.
@@ -569,7 +645,7 @@ def PrecipPlot(df, fignum=6, city=0):
                  p[2],
                  label=p[0], zorder=p[3])
     # Plot records data
-    plt.title('Days with Precipitation in '+ stationName[city])
+    plt.title('Days with Precipitation in '+ df.city)
     plt.legend(numpoints=1,
                bbox_to_anchor=(1.07, 1), loc='upper right', borderaxespad=0.)
     plt.axis([1940, 2020, '20160101', '20161231'])
@@ -579,7 +655,7 @@ def PrecipPlot(df, fignum=6, city=0):
     return
 
 
-def SnowPlot(df, fignum=7, city=0):
+def SnowPlot(df, fignum=6):
     """
     Go through all data and plot first and last day of snow for the year.
 
@@ -636,7 +712,7 @@ def SnowPlot(df, fignum=7, city=0):
         for i in a.index:
             a[i] = dStart + pd.Timedelta(days=int(a[i] - 0.5))
         plt.plot(a, 'c-', linewidth=4)
-    plt.title('First and Last Snowfall for ' + stationName[city])
+    plt.title('First and Last Snowfall for ' + df.city)
     plt.legend(numpoints=1,
                loc='center left')
     plt.axis([1940, 2020, '20160101', '20161231'])
@@ -644,7 +720,7 @@ def SnowPlot(df, fignum=7, city=0):
     print('Done')
     return
 
-def HotDaysPlot(df, city, fignum=8):
+def HotDaysPlot(df, fignum=7):
     """
     Plots a bar chart of days each year over 25 and 30 °C.
 
@@ -671,20 +747,66 @@ def HotDaysPlot(df, city, fignum=8):
     # TODO fix prob with rows being diff length due to years not in list
     p2 = plt.bar(ind, warmc.iloc[:,0], width, color='orange')
     plt.legend((p2[0], p1[0]), ('Days > 25°C', 'Days > 30°C'))
-    plt.title("Warm and Hot Days for "+stationName[city])
+    plt.title("Warm and Hot Days for "+df.city)
     plt.show()
 
-def CompareWeighting(df, cols=[8], size=31, fignum=8, city=0):
+def MonthRangePlot(df, month=None, pad=True, combine=True, fignum=8):
+        if month is None:
+            month = time.localtime().tm_mon
+        cols = [4, 6]  # max and min temps
+        maxc = df.columns[cols[0]]
+        minc = df.columns[cols[1]]
+        short = 9  # length of short weighting window
+        long = 29  # length of long weighting window
+        avgf = df.GetMonth(cols, month, func=np.mean)
+        maxf = df.GetMonth(cols, month, func=np.max)
+        minf = df.GetMonth(cols, month, func=np.min)
+        stdf = df.GetMonth(cols, month, func=np.std)
+        maxmaxt = sm.WeightedMovingAverage(maxf[maxc], size=short, pad=pad)
+        minmaxt = sm.WeightedMovingAverage(minf[maxc], size=short, pad=pad)
+        maxmint = sm.WeightedMovingAverage(maxf[minc], size=short, pad=pad)
+        minmint = sm.WeightedMovingAverage(minf[minc], size=short, pad=pad)
+        avgmaxt = sm.WeightedMovingAverage(avgf[maxc], size=long, pad=pad)
+        avgmint = sm.WeightedMovingAverage(avgf[minc], size=long, pad=pad)
+        stdmaxt = sm.WeightedMovingAverage(stdf[maxc], size=long, pad=pad)
+        stdmint = sm.WeightedMovingAverage(stdf[minc], size=long, pad=pad)
+        umaxt = avgmaxt + stdmaxt
+        lmaxt = avgmaxt - stdmaxt
+        umint = avgmint + stdmint
+        lmint = avgmint - stdmint
+        index = avgf.index
+
+        fig = plt.figure(fignum)
+        fig.clear()
+        plt.fill_between(index, maxmaxt, minmaxt,
+                         color='red', alpha=0.10, label='Upper/Lower Highs')
+        plt.fill_between(index, maxmint, minmint,
+                         color='blue', alpha=0.10, label='Upper/Lower Lows')
+        plt.fill_between(index, umaxt, lmaxt,
+                         color='red', alpha=0.15, label='68% Range Highs')
+        plt.fill_between(index, umint, lmint,
+                         color='blue', alpha=0.15, label='68% Range Lows')
+        plt.plot(avgmaxt, 'r-', lw=2, alpha=0.5, label='Average Highs')
+        plt.plot(avgmint, 'b-', lw=2, alpha=0.5, label='Average Lows')
+        plt.ylabel('Temperature °C')
+        plt.title('Temperature Range for '+df.city+' in '+monthL[month])
+        plt.legend(loc='upper left')
+        plt.show()
+
+
+
+
+def CompareWeighting(df, cols=[8], size=31, fignum=20):
     """Compare various weighting windows on real data.
     """
-    yf = GetYears(df, cols)
+    yf = df.GetYears(cols)
     yf = yf - yf.iloc[:30].mean()
     col = yf.columns[0]
     y = yf[col]
     fig = plt.figure(fignum)
     fig.clear()
     plt.plot(y, 'ko-', lw=1, alpha=0.15,
-             label=(stationName[city]+' '+col))
+             label=(df.city+' '+col))
 
     ma = sm.WeightedMovingAverage(y, size, winType=sm.Triangle)
     plt.plot(ma, '-', alpha=0.8, lw=1, label='Triangle')
@@ -717,7 +839,7 @@ def CompareSmoothing(df, cols=[8],
                      size=31,
                      frac=2./3., pts=31, itn=3, order=2,
                      lags=31,
-                     fignum=9, city=0):
+                     fignum=21, city=0):
     """Comparison between moving weighted average and lowess smoothing.
 
     df:    daily records for a city
@@ -728,14 +850,14 @@ def CompareSmoothing(df, cols=[8],
     order: order of the lowess polynomial
     lags:     number of time lags to use for SSA
     """
-    yf = GetYears(df, cols)
+    yf = df.GetYears(cols)
     yf = yf - yf.iloc[:30].mean()
     col = yf.columns[0]
     y = yf[col]
     fig = plt.figure(fignum)
     fig.clear()
     plt.plot(y, 'ko-', lw=1, alpha=0.15,
-             label=(stationName[city]+' '+col))
+             label=(df.city+' '+col))
     if pts==None:
         p = np.ceil(frac * len(y))
     else:
