@@ -45,16 +45,16 @@ plt.style.use('ggplot')
 
 basepath = '/Users/Dan/Documents/Weather/Stations/'
 
-monthS = ['Jan', 'Feb', 'Mar', 'Apr',
+monthS = ['Yr ', 'Jan', 'Feb', 'Mar', 'Apr',
           'May', 'Jun', 'Jul', 'Aug',
           'Sep', 'Oct', 'Nov', 'Dec']
-monthL = ['January', 'Febuary', 'March', 'April',
+monthL = ['Year', 'January', 'February', 'March', 'April',
           'May', 'June', 'July', 'August',
           'September', 'October', 'November', 'December']
 monthN = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4,
           'May':5, 'Jun':6, 'Jul':7, 'Aug':8,
           'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12,
-          'January':1, 'Febuary':2, 'March':3, 'April':4,
+          'January':1, 'February':2, 'March':3, 'April':4,
           'May':5, 'June':6, 'July':7, 'August':8,
           'September':9, 'October':10, 'November':11, 'December':12}
 
@@ -211,7 +211,7 @@ class WxDF(pd.DataFrame):
     def Str(self):
         print(self.__str__)
 
-    def _GetData(self, year=None):
+    def _GetData(self, year=None, raw=False):
         """Get a year's worth of data from Environment Canada site.
 
         year: (opt) Year to retrieve. Defaults to current year.
@@ -223,6 +223,13 @@ class WxDF(pd.DataFrame):
                    "&submit=Download+Data")
         url = baseURL.format(stn=self.station,
                              yr=year)
+        if raw:
+            df = pd.read_csv(url, skiprows=self._nonHeadRows,
+                         index_col=0,
+                         parse_dates=True,
+                         na_values=['M','<31'])
+            return df
+
         df = pd.read_csv(url, skiprows=self._nonHeadRows,
                          index_col=0,
                          parse_dates=True,
@@ -323,6 +330,9 @@ class WxDF(pd.DataFrame):
         """Convert daily data to yearly data for a particular month
 
         """
+        if month == 0:  # Return full year
+            return self.GetYears(cols=cols, func=func)
+
         if month is None:
             month = time.localtime().tm_mon
         labels = list(self.columns[cols])
@@ -750,15 +760,16 @@ def HotDaysPlot(df, fignum=7):
     plt.title("Warm and Hot Days for "+df.city)
     plt.show()
 
-def MonthRangePlot(df, month=None, pad=True, combine=True, fignum=8):
+def MonthRangePlot(df, month=None, pad=False, combine=True, fignum=8):
         if month is None:
             month = time.localtime().tm_mon
-        cols = [4, 6]  # max and min temps
+        cols = [4, 6, 8]  # max and min temps
         maxc = df.columns[cols[0]]
         minc = df.columns[cols[1]]
+        avgc = df.columns[cols[2]]
         short = 9  # length of short weighting window
         long = 29  # length of long weighting window
-        avgf = df.GetMonth(cols, month, func=np.mean)
+        avgf = df.GetMonth([4,6,8], month, func=np.mean)
         maxf = df.GetMonth(cols, month, func=np.max)
         minf = df.GetMonth(cols, month, func=np.min)
         stdf = df.GetMonth(cols, month, func=np.std)
@@ -766,6 +777,7 @@ def MonthRangePlot(df, month=None, pad=True, combine=True, fignum=8):
         minmaxt = sm.WeightedMovingAverage(minf[maxc], size=short, pad=pad)
         maxmint = sm.WeightedMovingAverage(maxf[minc], size=short, pad=pad)
         minmint = sm.WeightedMovingAverage(minf[minc], size=short, pad=pad)
+        avgavgt = sm.WeightedMovingAverage(avgf[avgc], size=long, pad=pad)
         avgmaxt = sm.WeightedMovingAverage(avgf[maxc], size=long, pad=pad)
         avgmint = sm.WeightedMovingAverage(avgf[minc], size=long, pad=pad)
         stdmaxt = sm.WeightedMovingAverage(stdf[maxc], size=long, pad=pad)
@@ -774,23 +786,42 @@ def MonthRangePlot(df, month=None, pad=True, combine=True, fignum=8):
         lmaxt = avgmaxt - stdmaxt
         umint = avgmint + stdmint
         lmint = avgmint - stdmint
-        index = avgf.index
-
+        index = maxmaxt.index
+        title = 'Temperature Range in '+df.city+' for '+monthL[month]
         fig = plt.figure(fignum)
         fig.clear()
-        plt.fill_between(index, maxmaxt, minmaxt,
+        if not combine:
+            plt.subplots_adjust(hspace=0.001, wspace=0.1,
+                                left=0.05, right=0.95,
+                                bottom=0.05, top=0.95)
+            ax0 = plt.subplot(2, 1, 1)
+            ax1 = plt.subplot(2, 1, 2, sharex=ax0)
+            xt = ax0.get_xticklabels()
+            plt.setp(xt, visible=False)
+            fig.suptitle(title)
+        else:
+            ax0 = plt.subplot(1, 1, 1)
+            ax1 = ax0
+            plt.title(title)
+
+        ax0.fill_between(index, maxmaxt, minmaxt,
                          color='red', alpha=0.10, label='Upper/Lower Highs')
-        plt.fill_between(index, maxmint, minmint,
+        ax1.fill_between(index, maxmint, minmint,
                          color='blue', alpha=0.10, label='Upper/Lower Lows')
-        plt.fill_between(index, umaxt, lmaxt,
+        ax0.fill_between(index, umaxt, lmaxt,
                          color='red', alpha=0.15, label='68% Range Highs')
-        plt.fill_between(index, umint, lmint,
+        ax1.fill_between(index, umint, lmint,
                          color='blue', alpha=0.15, label='68% Range Lows')
-        plt.plot(avgmaxt, 'r-', lw=2, alpha=0.5, label='Average Highs')
-        plt.plot(avgmint, 'b-', lw=2, alpha=0.5, label='Average Lows')
-        plt.ylabel('Temperature °C')
-        plt.title('Temperature Range for '+df.city+' in '+monthL[month])
-        plt.legend(loc='upper left')
+        ax0.plot(avgmaxt, 'r-', lw=2, alpha=0.5, label='Average Highs')
+        ax1.plot(avgmint, 'b-', lw=2, alpha=0.5, label='Average Lows')
+        if combine:
+            ax0.plot(avgavgt, 'k-', lw=2, alpha=0.5, label='Average Daily')
+        ax0.legend(loc='upper left')
+        ax1.legend(loc='upper left')
+        ax0.set_ylabel('Temperature °C')
+        ax1.set_ylabel('Temperature °C')
+
+        #plt.title('Temperature Range for '+df.city+' in '+monthL[month])
         plt.show()
 
 
@@ -907,3 +938,6 @@ def CompareSmoothing(df, cols=[8],
     plt.text(1987, np.floor(y.min())+.05, box)
     plt.show()
     return
+
+if __name__=='__main__':
+    df = WxDF()

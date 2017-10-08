@@ -132,7 +132,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     else:
         return pd.Series(yEst, index=data.index, name='Trend')
 
-def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
+def WeightedMovingAverage(fs, size, pad=True, winType=Hanning, wts=None):
     """Apply a weighted moving average on the supplied series.
 
     Parameters
@@ -167,9 +167,13 @@ def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
 
     Notes
     -----
-    Defaults to using a triangular window for weights, centered on
+    Defaults to using a Hanning window for weights, centered on
     each point. For points near the beginning or end of data, special
     processing is required that isn't in built-in functions.
+
+    Any rows with no value (nan) are dropped from series, and that reduced
+    series is returned. This series will have fewer members than what was
+    given, and may cause problems with mismatched indexes.
     """
     def SetLimits(i, hw):
         # i: current data location where window is centred
@@ -180,6 +184,7 @@ def WeightedMovingAverage(s, size, pad=True, winType=Hanning, wts=None):
         we = hw + (de - i)          # window end
         return ds, de, ws, we
 
+    s = fs.dropna()
     if type(wts) == type(None):
         size += (size+1) % 2  # make odd
         window = winType(size)
