@@ -157,14 +157,22 @@ class WxDF(pd.DataFrame):
     def __str__(self):
         """Return a summary of the data
         """
+        hMap = {'Data Quality':'Qual', 'Max Temp (°C)':'Max Temp',
+                'Min Temp (°C)':'Min Temp', 'Mean Temp (°C)':'Mean Temp',
+                'Total Precip (mm)':'Precip'}
+
         def GetLine(r):
+            # hdgs and lbl are defined outside function
             if hasattr(self.index[0], 'year'):
                 st = str(self.index[r].date()).ljust(10)
             else:
                 st = str(self.index[r]).ljust(10)
             for i, c in enumerate(lbl):
                 num = max(7, len(hdgs[i])+2)
-                st = st + '{:.1f}'.format(self[c].iloc[r]).rjust(num)
+                if type(self[c].iloc[r]) is np.float64:
+                    st = st + '{:.1f}'.format(self[c].iloc[r]).rjust(num)
+                else:
+                    st = st + str(self[c].iloc[r]).rjust(num)
             return st
 
         hdgs = '    Undefined'
@@ -173,9 +181,13 @@ class WxDF(pd.DataFrame):
             lbl = list(self.columns[0:num])
             hdgs = [l.rjust(max(7,len(l))) for l in lbl]
         elif self.period == 'daily' or len(self.columns)==26:
-            cols = [4, 6, 8, 18]
-            lbl = list(self.columns[cols])
-            hdgs = ['Max Temp','Min Temp','Mean Temp','Precip']
+            full = list(hMap.keys())
+            avail = list(self.columns)
+            lbl = []
+            for h in full:
+                if h in avail:
+                    lbl.append(h)
+            hdgs = [hMap[h] for h in lbl]
             hdgs = [h.rjust(max(7,len(h))) for h in hdgs]
         elif self.period == 'monthly':
             cols = [0, 5, 11]
@@ -196,7 +208,7 @@ class WxDF(pd.DataFrame):
             s = '\n'.join([s, GetLine(i)])
         s = '\n'.join([s,'...'])
         num = min(len(self.index), last+2)
-        for i in range(last-4, num):
+        for i in range(last-9, num):
             s = '\n'.join([s, GetLine(i)])
         s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
                                                len(self.columns))])
