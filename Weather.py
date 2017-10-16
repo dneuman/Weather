@@ -448,9 +448,7 @@ def StackPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-def TempPlot(df, size=15, fignum=1, showmean=True,
-             cols=[4, 6, 8],
-             annotatePDO=False):
+def TempPlot(df, cols=[4, 6, 8], size=21, showmean=True, fignum=1):
     """Plot indicated columns of data, with optional annotations"""
 
     yr = df.GetYears(cols=cols)
@@ -493,20 +491,6 @@ def TempPlot(df, size=15, fignum=1, showmean=True,
     # Annotate chart
     plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
     plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
-    if annotatePDO:
-        # Define PDO locations for annotations
-        py = [a[px[0]]+.05, a[px[1]]+.05, a[px[2]]+.05]
-        pt = [px[1]-5, py[1]+.4]
-        psx = [pt[0]-2, pt[0], pt[0]+2]
-        psy = [pt[1]-.05, pt[1]-.05, pt[1]-.05]
-        # Add PDO annotation
-        plt.text(1890, -1.9, 'PDO = Pacific Decadal Oscillation')
-        plt.text(pt[0], pt[1], 'PDO', size='larger', ha='center')
-        pdoprops = dict(facecolor='black', width=2, alpha=0.5)
-        for i in range(3):
-            plt.annotate("", xy=(px[i], py[i]),
-                         xytext=(psx[i], psy[i]),
-                         arrowprops=pdoprops)
     plt.legend(loc=2)
 
     Mirror()
@@ -515,7 +499,7 @@ def TempPlot(df, size=15, fignum=1, showmean=True,
     return
 
 
-def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2):
+def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     """Simple smoothed plots with optional baseline.
     """
     yf = df.GetYears(cols=cols)
@@ -526,12 +510,13 @@ def TrendPlot(df, cols=[4, 6, 8], size=15, change=True, fignum=2):
     fig = plt.figure(fignum)
     fig.clear()
     for i, y in enumerate(ma):
-        plt.plot(y, '-', alpha=0.5, label=yf.columns[i])
+        plt.plot(y, '-', alpha=0.5, linewidth=2, label=yf.columns[i])
     plt.ylabel('Temperature Change from Baseline (°C)')
     plt.xlabel('Year')
     plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
-    plt.show()
+    Mirror()
+    fig.show()
     return
 
 
