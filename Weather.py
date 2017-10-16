@@ -387,6 +387,14 @@ class WxDF(pd.DataFrame):
         yf.type = func.__name__
         return yf
 
+def Mirror():
+    ax = plt.gca()
+    ax2 = ax.twinx()
+    ax2.grid(False) # is sitting on top of lines
+    ax2.set_yticks(ax.get_yticks())
+    ax2.set_ylim(ax.get_ylim())
+
+
 def StackPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
 
@@ -455,12 +463,13 @@ def TempPlot(df, size=15, fignum=1, showmean=True,
     cols = yr.columns
     if not showmean:
         cols = cols[0:-2]  # remove last column (mean)
+
     fig = plt.figure(fignum)
     fig.clear()  # May have been used before
     for ci, col in enumerate(cols):
         s = yr[col]
         a = sm.WeightedMovingAverage(s, size)
-        baseline = s.iloc[0:30].mean()
+        baseline = s.loc[:1921].mean()
         s = s - baseline
         a = a - baseline
         plt.plot(a, styles[ci][0], alpha=0.5, label='Trend', lw=5)
@@ -498,9 +507,11 @@ def TempPlot(df, size=15, fignum=1, showmean=True,
             plt.annotate("", xy=(px[i], py[i]),
                          xytext=(psx[i], psy[i]),
                          arrowprops=pdoprops)
-
     plt.legend(loc=2)
-    plt.show()
+
+    Mirror()
+
+    fig.show()
     return
 
 
@@ -557,12 +568,12 @@ def ErrorPlot(df, size=31, cols=[8], fignum=3):
     plt.show()
 
 
-def RecordsPlot(df, fignum=4):
+def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
     """Plot all records in daily data.
 
     df:     DataFrame containing daily data with standard columns.
+    use:    List of records to show.
     fignum: (opt) Figure to use. Useful to keep multiple plots separated.
-    city:   (opt) City to use for titles. Defaults to first city in list.
     """
 
     def ToNow(t):
@@ -579,8 +590,9 @@ def RecordsPlot(df, fignum=4):
              ['Rain', 14, 'go', 2, float.__gt__, -100.0],
              ['Snow', 16, 'cH', 1, float.__gt__, -100.0],
              ]
+    props = [props[i] for i in use]
     # Create list of daily records. Use 2016 as reference year (leap year)
-    r = pd.TimeSeries(index=pd.date_range(dt.date(2016, 1, 1),
+    r = pd.Series(index=pd.date_range(dt.date(2016, 1, 1),
                                           dt.date(2016, 12, 31)))
     # Create list of counts of records for each year
     cols = []
