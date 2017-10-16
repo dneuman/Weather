@@ -31,6 +31,7 @@
 
 import time
 import matplotlib.pyplot as plt
+import matplotlib.ticker as tk
 import pandas as pd
 import numpy as np
 import datetime as dt
@@ -387,9 +388,22 @@ class WxDF(pd.DataFrame):
         yf.type = func.__name__
         return yf
 
-def Mirror():
+def Mirror(prec=1):
+    """Adds y-axis that's a mirror of the y-axis on left.
+
+    Parameters
+    ----------
+    prec : int (opt) Default=1
+        Number of significant digits (precision) to use on scale
+    Notes
+    -----
+    Use this function just before the final fig.show() command.
+    """
     ax = plt.gca()
     ax2 = ax.twinx()
+    fmt = '% .{}f'.format(prec) # adds a space if number is >0
+    ax.yaxis.set_major_formatter(tk.FormatStrFormatter(fmt))
+    ax2.yaxis.set_major_formatter(tk.FormatStrFormatter(fmt))
     ax2.grid(False) # is sitting on top of lines
     ax2.set_yticks(ax.get_yticks())
     ax2.set_ylim(ax.get_ylim())
