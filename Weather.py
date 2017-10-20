@@ -388,7 +388,7 @@ class WxDF(pd.DataFrame):
         yf.type = func.__name__
         return yf
 
-def Mirror(prec=1):
+def _addYAxis(pad=20):
     """Adds y-axis that's a mirror of the y-axis on left.
 
     Parameters
@@ -399,14 +399,27 @@ def Mirror(prec=1):
     -----
     Use this function just before the final fig.show() command.
     """
+
+    """
+    Alternate approach:
+        fmt = '{' + 'x: .{p}f'.format(p=1) + '}' # adds a space if number is >0
+        ax.yaxis.set_major_formatter(tk.StrMethodFormatter(fmt))
+        ax2.yaxis.set_major_formatter(tk.StrMethodFormatter(fmt))
+    This approach uses the ASCII hyphen instead of unicode minus (\u2212).
+    The downside is that the padding is not always the same as a hyphen.
+    """
     ax = plt.gca()
     ax2 = ax.twinx()
-    fmt = '% .{}f'.format(prec) # adds a space if number is >0
-    ax.yaxis.set_major_formatter(tk.FormatStrFormatter(fmt))
-    ax2.yaxis.set_major_formatter(tk.FormatStrFormatter(fmt))
     ax2.grid(False) # is sitting on top of lines
     ax2.set_yticks(ax.get_yticks())
     ax2.set_ylim(ax.get_ylim())
+    ts = ax2.get_yticklabels()
+    [t.set_ha('right') for t in ts]
+    yax = ax2.get_yaxis()
+    # Best padding depends on size of labels (length and font size)
+    # get_window_extent().width shows this, but having trouble getting values.
+    yax.set_tick_params(pad=pad)
+
 
 
 def StackPlot(df, cols=2, title='', fignum=20):
@@ -507,7 +520,7 @@ def TempPlot(df, cols=[4, 6, 8], size=21, showmean=True, fignum=1):
     plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
     plt.legend(loc=2)
 
-    Mirror()
+    _addYAxis()
 
     fig.show()
     return
@@ -529,7 +542,7 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     plt.xlabel('Year')
     plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
-    Mirror()
+    _addYAxis()
     fig.show()
     return
 
