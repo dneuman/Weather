@@ -422,7 +422,7 @@ def _addYAxis(pad=20):
 
 
 
-def StackPlot(df, cols=2, title='', fignum=20):
+def GridPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
 
     Parameters
@@ -430,14 +430,11 @@ def StackPlot(df, cols=2, title='', fignum=20):
     df : pandas.DataFrame
         DataFrame containing data to be plotted in separate columns. Column
         names will be used for labels.
-
-    **Optionals:**
-
-    cols : int
+    cols : int (opt) default 2
         Number of columns per figure to use.
-    title : String
+    title : String (opt) default blank
         Name to use on each figure. Page numbers are added.
-    fignum : int
+    fignum : int (opt) default 20
         Figure to start at. Useful if you want to keep older plots available.
 
     Notes
