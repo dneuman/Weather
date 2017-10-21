@@ -36,6 +36,7 @@ import pandas as pd
 import numpy as np
 import datetime as dt
 import Smoothing as sm
+import Annotate as at
 
 pd.options.display.float_format = '{:.1f}'.format  # change print format
 plt.style.use('ggplot')
@@ -388,40 +389,6 @@ class WxDF(pd.DataFrame):
         yf.type = func.__name__
         return yf
 
-def _addYAxis(pad=20):
-    """Adds y-axis that's a mirror of the y-axis on left.
-
-    Parameters
-    ----------
-    prec : int (opt) Default=1
-        Number of significant digits (precision) to use on scale
-    Notes
-    -----
-    Use this function just before the final fig.show() command.
-    """
-
-    """
-    Alternate approach:
-        fmt = '{' + 'x: .{p}f'.format(p=1) + '}' # adds a space if number is >0
-        ax.yaxis.set_major_formatter(tk.StrMethodFormatter(fmt))
-        ax2.yaxis.set_major_formatter(tk.StrMethodFormatter(fmt))
-    This approach uses the ASCII hyphen instead of unicode minus (\u2212).
-    The downside is that the padding is not always the same as a hyphen.
-    """
-    ax = plt.gca()
-    ax2 = ax.twinx()
-    ax2.grid(False) # is sitting on top of lines
-    ax2.set_yticks(ax.get_yticks())
-    ax2.set_ylim(ax.get_ylim())
-    ts = ax2.get_yticklabels()
-    [t.set_ha('right') for t in ts]
-    yax = ax2.get_yaxis()
-    # Best padding depends on size of labels (length and font size)
-    # get_window_extent().width shows this, but having trouble getting values.
-    yax.set_tick_params(pad=pad)
-
-
-
 def GridPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
 
@@ -472,19 +439,12 @@ def GridPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-def TempPlot(df, cols=[4, 6, 8], size=21, showmean=True, fignum=1):
+def TempPlot(df, cols=[8], size=21, fignum=1):
     """Plot indicated columns of data, with optional annotations"""
 
     yr = df.GetYears(cols=cols)
     styles = [['r-', 'ro-'], ['c-', 'co-'], ['k-', 'ko-']]
-    # Set baseline annotation line
-    bx = [yr.index[0], yr.index[0], yr.index[30], yr.index[30]]
-    by = [-.3, -.4, -.4, -.3]
-    px = [1988, 2000, 2010]
-    py = [0, 0, 0]
     cols = yr.columns
-    if not showmean:
-        cols = cols[0:-2]  # remove last column (mean)
 
     fig = plt.figure(fignum)
     fig.clear()  # May have been used before
@@ -496,8 +456,6 @@ def TempPlot(df, cols=[4, 6, 8], size=21, showmean=True, fignum=1):
         a = a - baseline
         plt.plot(a, styles[ci][0], alpha=0.5, label='Trend', lw=5)
         plt.plot(s, styles[ci][1], alpha=0.2, lw=2)
-        for i, x in enumerate(px):
-            py[i] = max(py[i], a[x])
         # fit line to recent data
         sr = s.loc[1970:]  # get recent raw data
         c = np.polyfit(sr.index, sr, 1)     # fit a line to data
@@ -513,11 +471,11 @@ def TempPlot(df, cols=[4, 6, 8], size=21, showmean=True, fignum=1):
     plt.xlabel('Year')
     plt.title("Change in " + df.city + "'s Annual Temperature")
     # Annotate chart
-    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
-    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
+    at.Baseline([yr.index[0], 1920])
+    at.Attribute(source='Data: Environment Canada')
     plt.legend(loc=2)
 
-    _addYAxis()
+    at.AddYAxis()
 
     fig.show()
     return
@@ -539,7 +497,8 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     plt.xlabel('Year')
     plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
-    _addYAxis()
+
+    at.AddYAxis()
     fig.show()
     return
 
