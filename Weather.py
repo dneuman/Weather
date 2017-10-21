@@ -29,7 +29,6 @@
    Requires Python 3 (tested on 3.6.1, Anaconda distribution)
 """
 
-import time
 import matplotlib.pyplot as plt
 import matplotlib.ticker as tk
 import pandas as pd
@@ -231,7 +230,7 @@ class WxDF(pd.DataFrame):
         year: (opt) Year to retrieve. Defaults to current year.
         """
         if year is None:
-            year = time.localtime().tm_year
+            year = dt.date.today().year
         baseURL = ("http://climate.weather.gc.ca/climate_data/bulk_data_e.html?"
                    "format=csv&stationID={stn}&Year={yr}&timeframe=2"
                    "&submit=Download+Data")
@@ -263,7 +262,7 @@ class WxDF(pd.DataFrame):
                 orig.loc[row] = new.loc[row]
 
         if (eYear is None):
-            eYear = time.localtime().tm_year
+            eYear = dt.date.today().year
         if (sYear is None):
             sYear = self.index[self.GetLastDay()].year
         for theYear in range(sYear, eYear+1):
@@ -348,7 +347,7 @@ class WxDF(pd.DataFrame):
             return self.GetYears(cols=cols, func=func)
 
         if month is None:
-            month = time.localtime().tm_mon
+            month = dt.date.today().month
         labels = list(self.columns[cols])
         yf = self.loc[lambda df: df.Month == month]
         mf = yf.pivot_table(values=labels,
@@ -754,7 +753,7 @@ def HotDaysPlot(df, fignum=7):
 
 def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
         if month is None:
-            month = time.localtime().tm_mon
+            month = dt.date.today().month
         maxc = nf.columns[4] # max:0, min:1, avg:2
         minc = nf.columns[6]
         avgc = nf.columns[8]
