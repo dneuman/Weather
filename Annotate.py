@@ -80,7 +80,7 @@ def Baseline(range):
     tr[1] -= .05
     bx = [blft, blft, brgt, brgt]
     by = [btop, bbtm, bbtm, btop]
-    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.75,
+    plt.plot(bx, by, 'k-', linewidth=1.5, alpha=0.75,
              transform=ax.transAxes)
     plt.text(bx[1], by[1]-.01, 'Baseline', size='larger',
              va='top', transform=ax.transAxes)

@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Spyder Editor
-
-This is a temporary script file.
+Smoothing Module
+----------------
+Functions useful for data smoothing contained in pandas Series. The three
+types are:
+    * Lowess: Linear regression smoothing at each point
+    * WeightedMovingAverage: Moving average using a variety of weights
+    * SSA: Singular Spectrum Analysis which separates out different freqs
 """
 import numpy as np
 import pandas as pd
@@ -150,13 +154,12 @@ def WeightedMovingAverage(fs, size, pad=True, winType=Hanning, wts=None):
         Window function that takes an integer (window size) and returns a list
         of weights to be applied to the data. The default is Hanning, a
         weighted cosine with non-zero endpoints. Other possible windows are:
-
         * np.bartlett (triangular with endpoints of 0)
         * np.blackman (3 cosines creating taper)
         * np.hamming (weighted cosine)
         * np.hanning (weighted cosine with endpoints of 0)
         * Triangle (triangle with non-zero enpoints, and option to
-                    clip top of triangle)
+          clip top of triangle)
     wts : list (optional, default = None)
         List of weights to use. `size` becomes the length of wts. Use this
         option to provide a custom weighting function. The length of wts
