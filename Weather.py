@@ -453,22 +453,16 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
         baseline = s.loc[:1921].mean()
         s = s - baseline
         a = a - baseline
-        plt.plot(a, styles[ci][0], alpha=0.5, label='Trend', lw=5)
-        plt.plot(s, styles[ci][1], alpha=0.2, lw=2)
+        plt.plot(s, styles[ci][1], alpha=0.2, lw=1)
+        plt.plot(a, styles[ci][0], alpha=0.75, label='Trend', lw=5)
         # fit line to recent data
-        sr = s.loc[1970:]  # get recent raw data
-        c = np.polyfit(sr.index, sr, 1)     # fit a line to data
-        rate = '{:.2}°C/decade'.format(c[0]*10)
-        x = [sr.index[0], 0, sr.index[-1]]  # endpoints of fitted line
-        x[1] = (x[0]+x[2])/2                # add halfway point for comment
-        p = np.poly1d(c)                    # create polynomial
-        y = p(x)                            # calculate y values of line
-        plt.plot(x, y, 'k-', linewidth=2, alpha=0.5)
-        plt.text(x[1]-5, y[1]-0.3, rate, size='larger')
-    # Draw chart
+        at.AddRate(s.loc[1970:])
+
+    # Label chart
     plt.ylabel('Temperature Change From Baseline (°C)')
-    plt.xlabel('Year')
+    #plt.xlabel('Year')
     plt.title("Change in " + df.city + "'s Annual Temperature")
+
     # Annotate chart
     at.Baseline([yr.index[0], 1920])
     at.Attribute(source='Data: Environment Canada')
