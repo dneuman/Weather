@@ -1,20 +1,22 @@
 #!/usr/bin/env python
-"""Routines to deal with bulk weather data from Environment Canada
+"""
+Weather Module
+--------------
+
+Routines to deal with bulk weather data from Environment Canada
 
    Routines:
 
-   * Setup:
-
-   * Data Management:
+   * WxDF Class:
        * Update - Add years to data
        * Save - Save consolidated data
        * GetFirstDay - returns index to first day of data
        * GetLastDay - Returns index to last day of data
-   * Data Combining:
        * GetMonths - Return data grouped by months
+       * GetMonth - Return data grouped by years for a single month
        * GetYears - Return data grouped by years
    * Data Plotting:
-       * StackPlot - Put several plots on one page
+       * GridPlot - Put several plots on one page
        * TempPlot - Temperature plot with optional annotations
        * TrendPlot - Plot multiple temperature trends (e.g. min, max)
        * ErrorPlot - Plot showing 1 and 2 std dev from trend line
