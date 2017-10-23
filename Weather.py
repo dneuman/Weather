@@ -1,33 +1,38 @@
 #!/usr/bin/env python
 """
 Weather Module
---------------
+**************
 
 Routines to deal with bulk weather data from Environment Canada
 
-   Routines:
+WxDF Class
+----------
+   * Update - Add years to data
+   * Save - Save consolidated data
+   * GetFirstDay - returns index to first day of data
+   * GetLastDay - Returns index to last day of data
+   * GetMonths - Return data grouped by months
+   * GetMonth - Return data grouped by years for a single month
+   * GetYears - Return data grouped by years
 
-   * WxDF Class:
-       * Update - Add years to data
-       * Save - Save consolidated data
-       * GetFirstDay - returns index to first day of data
-       * GetLastDay - Returns index to last day of data
-       * GetMonths - Return data grouped by months
-       * GetMonth - Return data grouped by years for a single month
-       * GetYears - Return data grouped by years
-   * Data Plotting:
-       * GridPlot - Put several plots on one page
-       * TempPlot - Temperature plot with optional annotations
-       * TrendPlot - Plot multiple temperature trends (e.g. min, max)
-       * ErrorPlot - Plot showing 1 and 2 std dev from trend line
-       * RecordsPlot - Show all records on one graph
-       * PrecipPlot - Show precipitation
-       * SnowPlot - Show snowfall
-       * HotDaysPlot - Show number of hot days per year
-   * Miscellaneous:
-       * CompareSmoothing - Show how Lowess and WMA compare for trends
-       * CompareWeighting - Show how different weight windows compare
+Data Plotting
+-------------
+   * GridPlot - Put several plots on one page
+   * TempPlot - Temperature plot with optional annotations
+   * TrendPlot - Plot multiple temperature trends (e.g. min, max)
+   * ErrorPlot - Plot showing 1 and 2 std dev from trend line
+   * RecordsPlot - Show all records on one graph
+   * PrecipPlot - Show precipitation
+   * SnowPlot - Show snowfall
+   * HotDaysPlot - Show number of hot days per year
 
+Miscellaneous
+-------------
+   * CompareSmoothing - Show how Lowess and WMA compare for trends
+   * CompareWeighting - Show how different weight windows compare
+
+Requirements
+------------
    Requires Python 3 (tested on 3.6.1, Anaconda distribution)
 """
 
