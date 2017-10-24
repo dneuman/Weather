@@ -77,6 +77,7 @@ class WxDF(pd.DataFrame):
     Example
     -------
     ::
+
         df = WxDF(0)
         df
 
@@ -454,6 +455,7 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
 
     fig = plt.figure(fignum)
     fig.clear()  # May have been used before
+    ax = fig.add_subplot(111)
     for ci, col in enumerate(cols):
         s = yr[col]
         a = sm.WeightedMovingAverage(s, size)
@@ -475,8 +477,7 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     at.Attribute(source='Data: Environment Canada')
     plt.legend(loc=2)
 
-    at.AddYAxis()
-
+    at.AddYAxis(ax)
     fig.show()
     return
 
@@ -491,6 +492,7 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     ma = [sm.WeightedMovingAverage(yf[col], size) for col in yf.columns]
     fig = plt.figure(fignum)
     fig.clear()
+    ax = fig.add_subplot(111)
     for i, y in enumerate(ma):
         plt.plot(y, '-', alpha=0.5, linewidth=2, label=yf.columns[i])
     plt.ylabel('Temperature Change from Baseline (°C)')
@@ -498,7 +500,7 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
 
-    at.AddYAxis()
+    at.AddYAxis(ax)
     fig.show()
     return
 

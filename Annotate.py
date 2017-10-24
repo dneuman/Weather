@@ -21,29 +21,27 @@ def _Data2Axes(d, ax):
     return data_to_axis.transform(d)
 
 
-def AddYAxis(pad=15):
+def AddYAxis(ax, pad=None):
     """Adds y-axis that's a mirror of the y-axis on left.
 
     Parameters
     ----------
-    pad : int opt Default 15
+    ax : Axes
+        Axes to be mirrored
+    pad : int opt Default None
         Adjustment for location of labels. How far from the axis the right
-        side of the label is since it is right-justified.
+        side of the label is since it is right-justified. If not supplied,
+        a pretty good estimate is used.
+    Returns
+    -------
+    pad : float
+        Value of actually pad used. This can help as an adjustment starting
+        point if the estimated value is not right.
     Notes
     -----
     Use this function just before the final fig.show() command. Anywhere else
     causes problems with plotting to the wrong axes.
     """
-
-    """
-    Alternate approach:
-        fmt = '{' + 'x: .{p}f'.format(p=1) + '}' # adds a space if number is >0
-        ax.yaxis.set_major_formatter(tk.StrMethodFormatter(fmt))
-        ax2.yaxis.set_major_formatter(tk.StrMethodFormatter(fmt))
-    This approach uses the ASCII hyphen instead of unicode minus (\u2212).
-    The downside is that the padding is not always the same as a hyphen.
-    """
-    ax = plt.gca()
     ax2 = ax.twinx()
     ax2.grid(False) # is sitting on top of lines
     ax2.set_yticks(ax.get_yticks())
@@ -51,12 +49,24 @@ def AddYAxis(pad=15):
     ts = ax2.get_yticklabels()
     [t.set_ha('right') for t in ts]
     yax = ax2.get_yaxis()
-    # Best padding depends on size of labels (length and font size)
-    # get_window_extent().width shows this, but having trouble getting values.
+    if not pad:
+        ax.figure.canvas.draw()
+        rend = ax.figure.canvas.get_renderer()
+        bboxes = yax.get_ticklabel_extents(rend)
+        w = bboxes[1].width
+        # Value (2.8) tested with Mac Retina Display. Might not work on other
+        # systems.
+        if plt.get_backend().startswith('Mac'):
+            pad = w/2.8 - 2.7
+        else:
+            pad = w/1.4 - 2.7
     yax.set_tick_params(pad=pad)
     # make ticks invisible (not labels)
     ax.tick_params(axis='y', color=(0,0,0,0))
     ax2.tick_params(axis='y', color=(0,0,0,0))
+    #fixes axis overlap in 'ggplot' style
+    ax2.spines['right'].set_alpha(0)
+    return pad
 
 def Baseline(range):
     """Add baseline to current plot.
