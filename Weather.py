@@ -755,108 +755,134 @@ def HotDaysPlot(df, fignum=7):
     plt.show()
 
 def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
-        if month is None:
-            month = dt.date.today().month
-        maxc = nf.columns[4] # max:0, min:1, avg:2
-        minc = nf.columns[6]
-        avgc = nf.columns[8]
-        short = 5  # length of short weighting window
-        long = 29  # length of long weighting window
-        vlong = 61 # length of daily weighting window
-        # just use year, month, max, min, avg temps
-        df = nf[nf.columns[[0,1,4,6,8]]].copy()
-        # Get rid of rows that have 'nan' values
-        df.dropna(inplace=True)
+    """Get expected high and low temperatures for the supplied month.
 
-        # Calculate the standard deviation directly.
-        # Std dev = square root of mean error squared
-        # std dev = mean((val - mean(val))**2)**.5
-        #
-        # Using a moving average for the avg/mean for each day gives a better
-        # error value since the mean temperature is different at the beginning
-        # of a month than at the end.
-        af = df.copy()  # holds moving average amounts
-        ef = df[df.columns[[0,1,2,3]]].copy() # holds error amounts on max, min
-        sf = ef.copy()  # holds standard deviation amounts
-        mx = ef.copy()  # max, highest value above mean
-        mn = ef.copy()  # min, lowest value below mean
-        # Get the daily average max, min, avg temps.
-        for c in [maxc, minc, avgc]:
-            af[c] = sm.WeightedMovingAverage(df[c], size=vlong, pad=False)
-        # Get the error and standard deviation
-        for c in [maxc, minc]:
-            ef[c] = df[c] - af[c]
-            sf[c] = sm.WeightedMovingAverage(ef[c]**2,
-                          size=vlong, pad=False)**0.5
+    Parameters
+    ----------
+    nf : pandas.DataFrame
+        daily data contained in a pandas DataFrame
+    month : int opt default None
+        Desired month. The default gives current month. ``month=0`` gives
+        plot for entire year.
+    pad : boolean opt default False
+        Use padding on trend line. Padding gives smoother lines at start and
+        end, but forces the line slope to 0.
+    combine : boolean opt default True
+        Combine the maximum and minimum temperatures onto one plot. Otherwise
+        use two separate plots (which is easier to read).
+    fignum : int opt default 8
+        Figure number to use. Override if you want to see more than one plot
+        at a time.
+    Note
+    ----
+    Uses moving average to calculate the mean temperatures, and the standard
+    deviation from this.
+    """
+    if month is None:
+        month = dt.date.today().month
+    maxc = nf.columns[4] # max:0, min:1, avg:2
+    minc = nf.columns[6]
+    avgc = nf.columns[8]
+    short = 5  # length of short weighting window
+    long = 29  # length of long weighting window
+    vlong = 61 # length of daily weighting window
+    # just use year, month, max, min, avg temps
+    df = nf[nf.columns[[0,1,4,6,8]]].copy()
+    # Get rid of rows that have 'nan' values
+    df.dropna(inplace=True)
 
-        if month != 0:
-            # reduce to just correct month for desired frames
-            sf = sf.loc[lambda df: df.Month == month]
-            ef = ef.loc[lambda df: df.Month == month]
-            af = af.loc[lambda df: df.Month == month]
-        # Get the average over year for max, min and avg temps
-        af = af.pivot_table(values=[maxc, minc, avgc],
-                               index=['Year'], aggfunc=np.mean)
-        sf = sf.pivot_table(values=[maxc, minc],
-                               index=['Year'], aggfunc=np.mean)
-        # this is max and min *error*, so must be added to mean to be
-        # useful.
-        mx = ef.pivot_table(values=[maxc, minc],
-                               index=['Year'], aggfunc=np.max)
-        mn = ef.pivot_table(values=[maxc, minc],
-                               index=['Year'], aggfunc=np.min)
-        for c in [maxc, minc]:
-            mx[c] = sm.WeightedMovingAverage(mx[c], size=short, pad=False)
-            mn[c] = sm.WeightedMovingAverage(mn[c], size=short, pad=False)
-            sf[c] = sm.WeightedMovingAverage(sf[c], size=long, pad=False)
-        for c in [maxc, minc, avgc]:
-            af[c] = sm.WeightedMovingAverage(af[c], size=long, pad=False)
+    # Calculate the standard deviation directly.
+    # Std dev = square root of mean error squared
+    # std dev = mean((val - mean(val))**2)**.5
+    #
+    # Using a moving average for the avg/mean for each day gives a better
+    # error value since the mean temperature is different at the beginning
+    # of a month than at the end.
+    af = df.copy()  # holds moving average amounts
+    ef = df[df.columns[[0,1,2,3]]].copy() # holds error amounts on max, min
+    sf = ef.copy()  # holds standard deviation amounts
+    mx = ef.copy()  # max, highest value above mean
+    mn = ef.copy()  # min, lowest value below mean
+    # Get the daily average max, min, avg temps.
+    for c in [maxc, minc, avgc]:
+        af[c] = sm.WeightedMovingAverage(df[c], size=vlong, pad=False)
+    # Get the error and standard deviation
+    for c in [maxc, minc]:
+        ef[c] = df[c] - af[c]
+        sf[c] = sm.WeightedMovingAverage(ef[c]**2,
+                      size=vlong, pad=False)**0.5
 
-        umaxt = af[maxc] + sf[maxc]
-        lmaxt = af[maxc] - sf[maxc]
-        umint = af[minc] + sf[minc]
-        lmint = af[minc] - sf[minc]
-        maxmaxt = af[maxc] + mx[maxc]
-        minmaxt = af[maxc] + mn[maxc]
-        maxmint = af[minc] + mx[minc]
-        minmint = af[minc] + mn[minc]
-        index = af.index
+    if month != 0:
+        # reduce to just correct month for desired frames
+        sf = sf.loc[lambda df: df.Month == month]
+        ef = ef.loc[lambda df: df.Month == month]
+        af = af.loc[lambda df: df.Month == month]
+    # Get the average over year for max, min and avg temps
+    af = af.pivot_table(values=[maxc, minc, avgc],
+                           index=['Year'], aggfunc=np.mean)
+    sf = sf.pivot_table(values=[maxc, minc],
+                           index=['Year'], aggfunc=np.mean)
+    # this is max and min *error*, so must be added to mean to be
+    # useful.
+    mx = ef.pivot_table(values=[maxc, minc],
+                           index=['Year'], aggfunc=np.max)
+    mn = ef.pivot_table(values=[maxc, minc],
+                           index=['Year'], aggfunc=np.min)
+    for c in [maxc, minc]:
+        mx[c] = sm.WeightedMovingAverage(mx[c], size=short, pad=False)
+        mn[c] = sm.WeightedMovingAverage(mn[c], size=short, pad=False)
+        sf[c] = sm.WeightedMovingAverage(sf[c], size=long, pad=False)
+    for c in [maxc, minc, avgc]:
+        af[c] = sm.WeightedMovingAverage(af[c], size=long, pad=False)
 
-        title = 'Temperature Range in '+df.city+' for '+monthL[month]
-        fig = plt.figure(fignum)
-        fig.clear()
-        if not combine:
-            plt.subplots_adjust(hspace=0.001, wspace=0.1,
-                                left=0.08, right=0.92,
-                                bottom=0.05, top=0.95)
-            ax0 = plt.subplot(2, 1, 1)
-            ax1 = plt.subplot(2, 1, 2, sharex=ax0)
-            xt = ax0.get_xticklabels()
-            plt.setp(xt, visible=False)
-            fig.suptitle(title)
-        else:
-            ax0 = plt.subplot(1, 1, 1)
-            ax1 = ax0
-            plt.title(title)
+    umaxt = af[maxc] + sf[maxc]
+    lmaxt = af[maxc] - sf[maxc]
+    umint = af[minc] + sf[minc]
+    lmint = af[minc] - sf[minc]
+    maxmaxt = af[maxc] + mx[maxc]
+    minmaxt = af[maxc] + mn[maxc]
+    maxmint = af[minc] + mx[minc]
+    minmint = af[minc] + mn[minc]
+    index = af.index
 
-        ax0.fill_between(index, maxmaxt, minmaxt,
-                         color='red', alpha=0.10, label='Upper/Lower Highs')
-        ax1.fill_between(index, maxmint, minmint,
-                         color='blue', alpha=0.10, label='Upper/Lower Lows')
-        ax0.fill_between(index, umaxt, lmaxt,
-                         color='red', alpha=0.15, label='68% Range Highs')
-        ax1.fill_between(index, umint, lmint,
-                         color='blue', alpha=0.15, label='68% Range Lows')
-        ax0.plot(af[maxc], 'r-', lw=2, alpha=0.5, label='Average Highs')
-        ax1.plot(af[minc], 'b-', lw=2, alpha=0.5, label='Average Lows')
-        if combine:
-            ax0.plot(af[avgc], 'k-', lw=2, alpha=0.5, label='Average Daily')
-        ax0.legend(loc='upper left')
-        ax0.set_ylabel('Temperature °C')
-        if not combine:
-            ax1.legend(loc='upper left')
-            ax1.set_ylabel('Temperature °C')
-        plt.show()
+    title = 'Temperature Range in '+df.city+' for '+monthL[month]
+    fig = plt.figure(fignum)
+    fig.clear()
+    if not combine:
+        plt.subplots_adjust(hspace=0.001, wspace=0.1,
+                            left=0.08, right=0.92,
+                            bottom=0.05, top=0.95)
+        ax0 = plt.subplot(2, 1, 1)
+        ax1 = plt.subplot(2, 1, 2, sharex=ax0)
+        xt = ax0.get_xticklabels()
+        plt.setp(xt, visible=False)
+        fig.suptitle(title)
+    else:
+        ax0 = plt.subplot(1, 1, 1)
+        ax1 = ax0
+        plt.title(title)
+
+    ax0.fill_between(index, maxmaxt, minmaxt,
+                     color='red', alpha=0.10, label='Upper/Lower Highs')
+    ax1.fill_between(index, maxmint, minmint,
+                     color='blue', alpha=0.10, label='Upper/Lower Lows')
+    ax0.fill_between(index, umaxt, lmaxt,
+                     color='red', alpha=0.15, label='68% Range Highs')
+    ax1.fill_between(index, umint, lmint,
+                     color='blue', alpha=0.15, label='68% Range Lows')
+    ax0.plot(af[maxc], 'r-', lw=2, alpha=0.5, label='Average Highs')
+    ax1.plot(af[minc], 'b-', lw=2, alpha=0.5, label='Average Lows')
+    if combine:
+        ax0.plot(af[avgc], 'k-', lw=2, alpha=0.5, label='Average Daily')
+    ax0.legend(loc='upper left')
+    ax0.set_ylabel('Temperature °C')
+    if not combine:
+        ax1.legend(loc='upper left')
+        ax1.set_ylabel('Temperature °C')
+
+    at.AddYAxis(ax0)
+    if not combine: at.AddYAxis(ax1)
+    plt.show()
 
 
 
