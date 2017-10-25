@@ -361,7 +361,12 @@ class WxDF(pd.DataFrame):
         mf = yf.pivot_table(values=labels,
                               index=['Year'],
                               aggfunc=func)
-        return mf
+        mf.city = self.city
+        mf.period = 'annual'
+        mf.type = func.__name__
+        # Columns possibly in wrong order, so make sure they're ordered
+        # as given.
+        return mf[labels]
 
     def GetYears(self, cols=[4, 6, 8], func=np.mean):
         """Convert daily data to yearly data.
@@ -394,7 +399,10 @@ class WxDF(pd.DataFrame):
         yf.city = self.city
         yf.period = 'annual'
         yf.type = func.__name__
-        return yf
+
+        # Columns possibly in wrong order, so make sure they're ordered
+        # as given.
+        return yf[labels]
 
 def GridPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
@@ -754,7 +762,8 @@ def HotDaysPlot(df, fignum=7):
     plt.title("Warm and Hot Days for "+df.city)
     plt.show()
 
-def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
+def MonthRangePlot(nf, month=None, pad=False,
+                   combine=True, fignum=8):
     """Get expected high and low temperatures for the supplied month.
 
     Parameters
@@ -773,6 +782,9 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     fignum : int opt default 8
         Figure number to use. Override if you want to see more than one plot
         at a time.
+    dots : boolean opt default False
+        If True, points are added for min and max, for troubleshooting,
+        mostly.
     Note
     ----
     Uses moving average to calculate the mean temperatures, and the standard
@@ -780,11 +792,11 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     """
     if month is None:
         month = dt.date.today().month
-    maxc = nf.columns[4] # max:0, min:1, avg:2
+    maxc = nf.columns[4] # max:0/4, min:1/6, avg:2/8
     minc = nf.columns[6]
     avgc = nf.columns[8]
     short = 5  # length of short weighting window
-    long = 29  # length of long weighting window
+    long = 21  # length of long weighting window
     vlong = 61 # length of daily weighting window
     # just use year, month, max, min, avg temps
     df = nf[nf.columns[[0,1,4,6,8]]].copy()
@@ -839,16 +851,23 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     lmaxt = af[maxc] - sf[maxc]
     umint = af[minc] + sf[minc]
     lmint = af[minc] - sf[minc]
-    maxmaxt = af[maxc] + mx[maxc]
-    minmaxt = af[maxc] + mn[maxc]
-    maxmint = af[minc] + mx[minc]
-    minmint = af[minc] + mn[minc]
     index = af.index
 
+    # Get unsmoothed values for last year
+    if month != 0:
+        avm = nf.GetMonth([4, 6, 8], month, func=np.mean)
+        mxm = nf.GetMonth([4, 6, 8], month, func=np.max)
+        mnm = nf.GetMonth([4, 6, 8], month, func=np.min)
+    else:
+        avm = nf.GetYears([4, 6, 8], func=np.mean)
+        mxm = nf.GetYears([4, 6, 8], func=np.max)
+        mnm = nf.GetYears([4, 6, 8], func=np.min)
+
+    # PLOTTING
     title = 'Temperature Range in '+df.city+' for '+monthL[month]
     fig = plt.figure(fignum)
     fig.clear()
-    if not combine:
+    if not combine:  # create two separate plots
         plt.subplots_adjust(hspace=0.001, wspace=0.1,
                             left=0.08, right=0.92,
                             bottom=0.05, top=0.95)
@@ -857,14 +876,14 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
         xt = ax0.get_xticklabels()
         plt.setp(xt, visible=False)
         fig.suptitle(title)
-    else:
+    else:  # just put everything on one plot
         ax0 = plt.subplot(1, 1, 1)
         ax1 = ax0
         plt.title(title)
 
-    ax0.fill_between(index, maxmaxt, minmaxt,
+    ax0.fill_between(index, mxm[maxc], mnm[maxc],
                      color='red', alpha=0.10, label='Upper/Lower Highs')
-    ax1.fill_between(index, maxmint, minmint,
+    ax1.fill_between(index, mxm[minc], mnm[minc],
                      color='blue', alpha=0.10, label='Upper/Lower Lows')
     ax0.fill_between(index, umaxt, lmaxt,
                      color='red', alpha=0.15, label='68% Range Highs')
@@ -874,6 +893,17 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     ax1.plot(af[minc], 'b-', lw=2, alpha=0.5, label='Average Lows')
     if combine:
         ax0.plot(af[avgc], 'k-', lw=2, alpha=0.5, label='Average Daily')
+
+    # Add current available month as distinct points
+    ly = avm.index[-1]
+    marks = ['^', 'o', 'v']
+    maxvals = [mxm.iloc[-1,0], avm.iloc[-1,0], mnm.iloc[-1,0]]
+    minvals = [mxm.iloc[-1,1], avm.iloc[-1,1], mnm.iloc[-1,1]]
+    for mk, mxv, mnv in zip(marks, maxvals, minvals):
+        ax0.plot(ly, mxv, color='red', marker=mk)
+        ax1.plot(ly, mnv, color='blue', marker=mk)
+
+    # Annotate
     ax0.legend(loc='upper left')
     ax0.set_ylabel('Temperature °C')
     if not combine:
