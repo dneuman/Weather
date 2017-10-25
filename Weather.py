@@ -762,8 +762,7 @@ def HotDaysPlot(df, fignum=7):
     plt.title("Warm and Hot Days for "+df.city)
     plt.show()
 
-def MonthRangePlot(nf, month=None, pad=False,
-                   combine=True, fignum=8):
+def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     """Get expected high and low temperatures for the supplied month.
 
     Parameters
@@ -782,9 +781,6 @@ def MonthRangePlot(nf, month=None, pad=False,
     fignum : int opt default 8
         Figure number to use. Override if you want to see more than one plot
         at a time.
-    dots : boolean opt default False
-        If True, points are added for min and max, for troubleshooting,
-        mostly.
     Note
     ----
     Uses moving average to calculate the mean temperatures, and the standard
