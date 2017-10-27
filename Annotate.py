@@ -111,7 +111,7 @@ def Attribute(ha='right', va='bottom', source='', date=''):
         Vertical alignment of attribute
     source : str opt
         Where data came from (shoult start with 'Data:'). Multi-line strings
-        can be used (lines separated by '\n'), with space indents.
+        can be used (lines separated by newline), with space indents.
     date : str opt
         Date/year chart was made or data created. Usually just year.
     """

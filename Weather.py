@@ -164,13 +164,15 @@ class WxDF(pd.DataFrame):
         return WxDF
 
     def __str__(self):
-        """Return a summary of the data
+        """Return a formatted summary of the data
         """
         hMap = {'Data Quality':'Qual', 'Max Temp (°C)':'Max Temp',
                 'Min Temp (°C)':'Min Temp', 'Mean Temp (°C)':'Mean Temp',
                 'Total Precip (mm)':'Precip'}
 
         def GetLine(r):
+            """Format a row into a string
+            """
             # hdgs and lbl are defined outside function
             if hasattr(self.index[0], 'year'):
                 st = str(self.index[r].date()).ljust(10)
@@ -235,7 +237,13 @@ class WxDF(pd.DataFrame):
     def _GetData(self, year=None, raw=False):
         """Get a year's worth of data from Environment Canada site.
 
-        year: (opt) Year to retrieve. Defaults to current year.
+        Parameters
+        ----------
+        year : int opt default current year
+            Year to retrieve. Defaults to current year.
+        raw : boolean opt default False
+            If True, do no explicit conversion of supplied data. Use this
+            to help debug.
         """
         if year is None:
             year = dt.date.today().year
@@ -261,11 +269,15 @@ class WxDF(pd.DataFrame):
     def Update(self, sYear=None, eYear=None):
         """Merge desired years from online database,
 
-        df:    dataframe of daily data
-        sYear: (opt) start year, defaults to year of last data point
-        eYear: (opt) end year, defaults to current year
+        Parameters
+        ----------
+        sYear : int opt
+            Start year, defaults to year of last data point.
+        eYear : int opt
+            End year, defaults to current year.
         """
         def Combine(orig, new):
+            new.dropna(thresh=5, inplace=True)
             for row in new.index:
                 orig.loc[row] = new.loc[row]
 
@@ -280,10 +292,9 @@ class WxDF(pd.DataFrame):
     def Save(self):
         """Save consolidated weather data into a .csv file
 
-        df:   data frame of daily weather to save
-        city: (opt) City to retrieve. Defaults to first city in list.
-
-        Assumes data saveable at /basepath/city/Data/
+        Note
+        ----
+        Assumes data is saveable at self.path
         """
         # TODO: create directories if required
         file = "".join([basepath, self.path])
@@ -292,10 +303,6 @@ class WxDF(pd.DataFrame):
 
     def GetFirstDay(self):
         """Return index to first day with valid data.
-
-        Parameters
-        ----------
-        df : dataframe containing daily data
 
         Returns
         -------
@@ -310,10 +317,6 @@ class WxDF(pd.DataFrame):
     def GetLastDay(self):
         """Return index to last day with valid data.
 
-        Parameters
-        ----------
-        df : dataframe containing daily data
-
         Returns
         -------
         Integer: df.iloc[i] will give data on last day.
@@ -327,10 +330,21 @@ class WxDF(pd.DataFrame):
     def GetMonths(self, col, func=np.mean):
         """Convert daily data to monthly data
 
-        col:   column to be combined
-        func:  (opt) function to use for combining. Defaults to mean (average)
-        Returns dataframe with the grouped monthly data in each columns
+        Parameters
+        ----------
+        col :   int
+            Column to be combined.
+        func :  function opt default np.mean
+            Function to use for combining. np.min, np.max and np.sum are
+            also useful.
 
+        Returns
+        -------
+        Returns dataframe (not WxDF) with the grouped monthly data in each
+        column.
+
+        Note
+        ----
         Only works for 1 column at a time due to extra complexity of multi-level
         axes when months are already columns.
         """
@@ -341,7 +355,8 @@ class WxDF(pd.DataFrame):
                               columns=['Month'],
                               aggfunc=func)
         avgs = avgs[label]  # turn into simple dataframe for simplicity
-        avgs.rename(columns=monthS, inplace=True)
+        colnames = dict(zip(list(range(13)), monthS))
+        avgs.rename(columns=colnames, inplace=True)
         avgs.city = self.city
         avgs.period = 'monthly'
         avgs.type = func.__name__ + ' ' + label
@@ -350,6 +365,19 @@ class WxDF(pd.DataFrame):
     def GetMonth(self, cols=[4, 6], month=None, func=np.mean):
         """Convert daily data to yearly data for a particular month
 
+        Parameters
+        ----------
+        cols : list opt default [4, 6] (max, min temps)
+            List of columns to be combined
+        month : int opt
+            Month to combine data for. Defaults to current month
+        func : function opt default np.mean
+            Function that combines the data. np.min, np.max and np.sum are
+            also useful.
+
+        Returns
+        -------
+        pandas.DataFrame containing monthly data by year
         """
         if month == 0:  # Return full year
             return self.GetYears(cols=cols, func=func)
@@ -371,10 +399,15 @@ class WxDF(pd.DataFrame):
     def GetYears(self, cols=[4, 6, 8], func=np.mean):
         """Convert daily data to yearly data.
 
-        df:    dataframe containing daily data
-        cols:  (opt) columns to be combined. Defaults to min, max, avg temps
-        func:  (opt) function to use for combining. Defaults to mean (average)
-        Returns dataframe with the grouped annual data
+        cols : list of ints opt default [4, 6, 8] (max, min, average temps)
+            Columns to be combined. Defaults to min, max, avg temps
+        func : function opt default np.mean
+            Function to use for combining. np.min, np.max and np.sum are
+            also useful.
+
+        Returns
+        -------
+        pandas.DataFrame with the data grouped by year
         """
         labels = self.columns[cols]
         yf = self.pivot_table(values=list(labels),
@@ -455,19 +488,39 @@ def GridPlot(df, cols=2, title='', fignum=20):
     plt.show()
 
 def TempPlot(df, cols=[8], size=21, fignum=1):
-    """Plot indicated columns of data, with optional annotations"""
+    """Plot indicated columns of data, including the moving average.
 
-    yr = df.GetYears(cols=cols)
+    Parameters
+    ----------
+    df : WxDF
+        DataFrame containing daily data. Can be a pandas.DataFrame with a
+        .city attribute added.
+    cols : list of ints opt default [8] (Mean Temp)
+        Columns to plot.
+    size : int opt default 21
+        Size of the moving average window. Larger values give smoother
+        results.
+    fignum : in opt default 1
+        Figure number to use. Useful if multiple plots are required.
+
+    Note
+    ----
+    Works best with just one column since all raw data is shown and gets
+    messy with multiple columns.
+    """
+
+    yf = df.GetYears(cols=cols)
     styles = [['r-', 'ro-'], ['c-', 'co-'], ['k-', 'ko-']]
-    cols = yr.columns
+    cols = yf.columns
 
     fig = plt.figure(fignum)
     fig.clear()  # May have been used before
     ax = fig.add_subplot(111)
     for ci, col in enumerate(cols):
-        s = yr[col]
+        s = yf[col]
         a = sm.WeightedMovingAverage(s, size)
         baseline = s.loc[:1921].mean()
+        # TODO add a baseline range input
         s = s - baseline
         a = a - baseline
         plt.plot(s, styles[ci][1], alpha=0.2, lw=1)
@@ -481,7 +534,7 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     plt.title("Change in " + df.city + "'s Annual Temperature")
 
     # Annotate chart
-    at.Baseline([yr.index[0], 1920])
+    at.Baseline([yf.index[0], 1920])
     at.Attribute(source='Data: Environment Canada')
     plt.legend(loc=2)
 
@@ -492,36 +545,66 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
 
 def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     """Simple smoothed plots with optional baseline.
+
+    Parameters
+    ----------
+    df : WxDF
+        DataFrame containing daily data. Can be a pandas.DataFrame with a
+        .city attribute added.
+    cols : list of ints opt default [4, 6, 8] (Max, Min, Avg Temp)
+        Columns to plot.
+    size : int opt default 21
+        Size of the moving average window. Larger values give smoother
+        results.
+    change : boolean opt default True
+        Show change from the baseline
+    fignum : in opt default 2
+        Figure number to use. Useful if multiple plots are required.
     """
     yf = df.GetYears(cols=cols)
     if change:
         for col in yf.columns:
             yf[col] = yf[col] - yf[col][:30].mean()
+            # TODO use years instead of index
+            # TODO allow input of range
     ma = [sm.WeightedMovingAverage(yf[col], size) for col in yf.columns]
     fig = plt.figure(fignum)
     fig.clear()
     ax = fig.add_subplot(111)
     for i, y in enumerate(ma):
         plt.plot(y, '-', alpha=0.5, linewidth=2, label=yf.columns[i])
+
+    # Annotate
     plt.ylabel('Temperature Change from Baseline (°C)')
     plt.xlabel('Year')
     plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
+    at.Baseline([yf.index[0], yf.index[30]])
 
     at.AddYAxis(ax)
     fig.show()
     return
 
-
-def ErrorPlot(df, size=31, cols=[8], fignum=3):
+def ErrorPlot(df, cols=[8], size=21, fignum=3):
     """Show standard deviation of temperature from trend.
 
-    df: DataFrame containing Environment Canada data with standard columns.
-    cols: list of columns to use. Currently only uses first column supplied.
-    size: size of moving average window
+    Parameters
+    ----------
+    df : WxDF
+        DataFrame containing daily data. Can be a pandas.DataFrame with a
+        .city attribute added.
+    cols : list of ints opt default [8] (Mean Temp)
+        Columns to plot.
+    size : int opt default 21
+        Size of the moving average window. Larger values give smoother
+        results.
+    fignum : in opt default 3
+        Figure number to use. Useful if multiple plots are required.
     """
     yf = df.GetYears(cols)
     yf = yf - yf.iloc[:30].mean()
+    # TODO convert from index to years
+    # TODO allow input of a range
     col = yf.columns[0]
     ma = sm.WeightedMovingAverage(yf[col], size)
     err = (ma - yf[col])**2
@@ -535,14 +618,13 @@ def ErrorPlot(df, size=31, cols=[8], fignum=3):
                      color='red', alpha=0.15, label='68%')
     plt.fill_between(ma.index, ma.values+2*std, ma.values-2*std,
                      color='red', alpha=0.10, label='95%')
-    plt.legend(loc='upper left')
+
     # Annotate chart
-    bx = [yf.index[0], yf.index[0], yf.index[30], yf.index[30]]
-    by = [-.3, -.4, -.4, -.3]
-    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
-    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
-    plt.ylabel('Temperature Change from Baseline (°C)')
+    plt.legend(loc='upper left')
     plt.title("Change in " + df.city + "'s Annual Temperature")
+    plt.ylabel('Temperature Change from Baseline (°C)')
+    at.Baseline([yf.index[0], yf.index[30]])
+
     plt.show()
 
 
