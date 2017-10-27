@@ -45,7 +45,7 @@ import Smoothing as sm
 import Annotate as at
 
 pd.options.display.float_format = '{:.1f}'.format  # change print format
-plt.style.use('ggplot')
+plt.style.use('weather')
 # http://matplotlib.org/users/style_sheets.html
 # matplotlib.style.available shows available styles
 # matplotlib.style.library is a dictionary of available styles
@@ -786,14 +786,15 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     Uses moving average to calculate the mean temperatures, and the standard
     deviation from this.
     """
+    short = 5  # length of short weighting window
+    long = 19  # length of long weighting window
+    vlong = 61 # length of daily weighting window
+
     if month is None:
         month = dt.date.today().month
     maxc = nf.columns[4] # max:0/4, min:1/6, avg:2/8
     minc = nf.columns[6]
     avgc = nf.columns[8]
-    short = 5  # length of short weighting window
-    long = 21  # length of long weighting window
-    vlong = 61 # length of daily weighting window
     # just use year, month, max, min, avg temps
     df = nf[nf.columns[[0,1,4,6,8]]].copy()
     # Get rid of rows that have 'nan' values
@@ -895,16 +896,56 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     marks = ['^', 'o', 'v']
     maxvals = [mxm.iloc[-1,0], avm.iloc[-1,0], mnm.iloc[-1,0]]
     minvals = [mxm.iloc[-1,1], avm.iloc[-1,1], mnm.iloc[-1,1]]
-    for mk, mxv, mnv in zip(marks, maxvals, minvals):
+    maxt = [' Max\n Day', ' Avg\n Day', ' Min\n Day']
+    mint = [' Max\n Ngt', ' Avg\n Ngt', ' Min\n Ngt']
+    maxt[0] = str(ly) + '\n' + maxt[0]
+    for mk, mxv, mnv, mxt, mnt in zip(marks, maxvals, minvals, maxt, mint):
         ax0.plot(ly, mxv, color='red', marker=mk)
         ax1.plot(ly, mnv, color='blue', marker=mk)
+        ax0.text(ly, mxv, mxt, ha='left', va='center', size='small')
+        ax1.text(ly, mnv, mnt, ha='left', va='center', size='small')
 
     # Annotate
-    ax0.legend(loc='upper left')
     ax0.set_ylabel('Temperature °C')
     if not combine:
-        ax1.legend(loc='upper left')
         ax1.set_ylabel('Temperature °C')
+
+    def mid(x, f=.5):
+        """Get the midpoint between min and max, or a fraction if supplied
+        """
+        mn = min(x)
+        mx = max(x)
+        return (mx-mn)*f + mn
+
+    txt0 = ['Hottest Day', 'Coldest Day',
+            'Average High', '68% Day Spread']
+    txt1 = ['Hottest Night', 'Coldest Night',
+            'Average Low', '68% Night Spread']
+    va0 = ['top', 'bottom', 'bottom', 'top']
+    va1 = ['top', 'bottom', 'top', 'bottom']
+    yrs = len(index)
+    xx0 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
+    xx1 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
+    xx0 = [int(x) for x in xx0]
+    xx1 = [int(x) for x in xx1]
+    yy0 = [mid(mxm[maxc],.8), mid(mnm[maxc],.2),
+           af[maxc].iloc[xx0[2]], umaxt.iloc[xx0[3]]]
+    yy1 = [mid(mxm[minc]), mid(mnm[minc],.2),
+           af[minc].iloc[xx1[2]], lmint.iloc[xx1[3]]]
+    for t, v, x, y in zip(txt0, va0, xx0, yy0):
+        ax0.text(index[x], y, t, va=v,
+                 ha='center', color='darkred', size='smaller')
+    for t, v, x, y in zip(txt1, va1, xx1, yy1):
+        ax1.text(index[x], y, t, va=v,
+                 ha='center', color='darkblue', size='smaller')
+    if combine:
+        x = index[xx0[2]]
+        y = af[avgc].iloc[xx0[2]]
+        ax0.text(x, y, 'Month Average',
+                 ha='center', va='bottom', size='smaller')
+
+    at.Attribute(source='Data: Environment Canada')
+    # TODO: Figure out why Attribute puts text in such an odd place.
 
     at.AddYAxis(ax0)
     if not combine: at.AddYAxis(ax1)

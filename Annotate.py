@@ -20,6 +20,11 @@ def _Data2Axes(d, ax):
     data_to_axis = axis_to_data.inverted()
     return data_to_axis.transform(d)
 
+def _gfa():
+    """ Utility function to get first axes on the figure.
+    """
+    fig = plt.gcf()
+    return fig.get_axes()[0]
 
 def AddYAxis(ax, pad=None):
     """Adds y-axis that's a mirror of the y-axis on left.
@@ -57,9 +62,9 @@ def AddYAxis(ax, pad=None):
         # Value (2.8) tested with Mac Retina Display. Might not work on other
         # systems.
         if plt.get_backend().startswith('Mac'):
-            pad = w/2.8 - 2.7
+            pad = w/2.8 - 2
         else:
-            pad = w/1.4 - 2.7
+            pad = w/1.4 - 2
     yax.set_tick_params(pad=pad)
     # make ticks invisible (not labels)
     ax.tick_params(axis='y', color=(0,0,0,0))
@@ -110,7 +115,7 @@ def Attribute(ha='right', va='bottom', source='', date=''):
     date : str opt
         Date/year chart was made or data created. Usually just year.
     """
-    ax = plt.gca()
+    ax = _gfa()
     loc = {'top': .86,
            'bottom': .12,
            'left': .14,
@@ -122,7 +127,7 @@ def Attribute(ha='right', va='bottom', source='', date=''):
         d = dt.datetime.now()
         date = d.strftime('%d %b %Y')
     text = text + 'Chart: @dan613   ' + date
-    plt.figtext(loc[ha], loc[va],
+    plt.text(loc[ha], loc[va],
             text,
             ha=ha,
             va=va,
@@ -158,7 +163,7 @@ def AddRate(*args, label='{:.2}°C/decade', mult=10):
     else:
         print('Unexpeced input. Use:\n  AddRate(x,y) or\n  AddRate(s)\n'
               'where x and y are lists-like, and s is a pandas series.')
-    ax = plt.gca()
+    ax = _gfa()
     c = np.polyfit(x, y, 1)            # fit a line to data
     rate = label.format(c[0]*mult)
     xx = [x[0],
