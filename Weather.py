@@ -631,9 +631,22 @@ def ErrorPlot(df, cols=[8], size=21, fignum=3):
 def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
     """Plot all records in daily data.
 
-    df:     DataFrame containing daily data with standard columns.
-    use:    List of records to show.
-    fignum: (opt) Figure to use. Useful to keep multiple plots separated.
+    Parameters
+    ----------
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    use : list of int opt default [0,1,2,3,4,5]
+        List of records to show. They are any of
+
+        0. Max Day,
+        1. Min Day,
+        2. Max Night
+        3. Min Night
+        4. Rain
+        5. Snow
+    fignum : (opt) default 4
+        Figure to use. Useful to keep multiple plots separated.
     """
 
     def ToNow(t):
@@ -687,7 +700,10 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
     plt.legend(numpoints=1,
                bbox_to_anchor=(1.07, 1), loc='upper right', borderaxespad=0.)
     plt.axis([1940, 2020, '20160101', '20161231'])
+    # TODO Fix y-axis format
+    # TODO add second y-axis
     plt.show()
+
     # Plot number of records per year in a stacked bar chart
     x = list(counts.index)
     y = list(range(len(counts.columns)))
@@ -697,8 +713,11 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
     fig.clear()
     plt.axis([1940, 2020, 0, 50])
     plt.stackplot(x, y)
+
+
     plt.legend(counts.columns)
     plt.title('Records per Year for ' + df.city)
+
     plt.show()
     print('Done')
     return
@@ -707,9 +726,13 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
 def PrecipPlot(df, fignum=5):
     """Go through all data and plot every day where it rained or snowed.
 
-    df:     DataFrame containing Environment Canada data with standard columns.
-    fignum: (opt) Figure to use. Useful to keep multiple plots separated.
-    city:   (opt) City to use for titles. Defaults to first city in list.
+    Parameters
+    ----------
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    fignum : int opt default 5
+        Figure to use. Useful to keep multiple plots separated.
     """
 
     def ToNow(t):
@@ -753,9 +776,13 @@ def SnowPlot(df, fignum=6):
     """
     Go through all data and plot first and last day of snow for the year.
 
-    df:     DataFrame containing daily data with standard columns.
-    fignum: (opt) Figure to use. Useful to keep multiple plots separated.
-    city:   (opt) City to use for titles. Defaults to first city in list.
+    Parameters
+    ----------
+     df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    fignum : int opt default 6
+        Figure to use. Useful to keep multiple plots separated.
     """
 
     # set up data for each set of records:
@@ -818,9 +845,13 @@ def HotDaysPlot(df, fignum=7):
     """
     Plots a bar chart of days each year over 25 and 30 °C.
 
-    df:     DataFrame containing daily data with standard columns.
-    fignum: (opt) Figure to use. Useful to keep multiple plots separated.
-    city:   (opt) City to use for titles. Defaults to first city in list.
+    Parameters
+    ----------
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    fignum : int opt default 7
+        Figure to use. Useful to keep multiple plots separated.
     """
     width = 0.35
     days = df.iloc[:, [0,4]]
