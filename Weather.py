@@ -43,6 +43,8 @@ import numpy as np
 import datetime as dt
 import Smoothing as sm
 import Annotate as at
+import pathlib
+
 
 pd.options.display.float_format = '{:.1f}'.format  # change print format
 plt.style.use('weather')
@@ -290,14 +292,12 @@ class WxDF(pd.DataFrame):
             Combine(self, nf)
 
     def Save(self):
-        """Save consolidated weather data into a .csv file
-
-        Note
-        ----
-        Assumes data is saveable at self.path
+        """Save consolidated weather data into a .csv file. Directories are
+        created as required.
         """
-        # TODO: create directories if required
         file = "".join([basepath, self.path])
+        p = pathlib.Path(file)
+        p.parent.mkdir(parents=True, exist_ok=True)
         self.to_csv(file,
               float_format="% .1f")
 
