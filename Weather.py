@@ -115,7 +115,7 @@ class WxDF(pd.DataFrame):
              25: float,   # "Spd of Max Gust (km/h)",
              26: str      # "Spd of Max Gust Flag"
              }
-    _metadata = ['city','period','type','path','station','id']
+    _metadata = ['city','period','type','path','station','id','baseline']
 
     _cf = None  # city information
 
@@ -159,7 +159,28 @@ class WxDF(pd.DataFrame):
             self.type = ''
             self.path = ''
             self.period = ''
-
+        # Add a minimum 10-year baseline. Try period up to 1920, otherwise
+        # try 1961-1990, otherwise 10 years from beginning, otherwise,
+        # just first year.
+        bls = 0
+        ble = 1920
+        fy = self.index[0].year
+        bls = max([fy, bls])
+        if bls < ble-10:
+            self.baseline = [bls, ble]
+            return
+        bls = 1961
+        ble = 1990
+        bls = max([fy, bls])
+        if bls < ble-10:
+            self.baseline = [bls, ble]
+            return
+        ly = self.index[-1].year
+        if ly-fy < 10:
+            self.baseline = [fy, fy]
+        else:
+            self.baseline = [fy, fy+10]
+        return
 
     @property
     def _constructor(self):
