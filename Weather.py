@@ -76,15 +76,16 @@ class WxDF(pd.DataFrame):
     following headings:
         city, station, path
 
-    Example
-    -------
+    Examples
+    --------
     ::
 
-        df = WxDF(0)
-        df
+        wf = WxDF()       # returns first city in _cf list
+        wf = WxDF(3)      # returns city in _cf.iloc[3]
+        wf = WxDF(3, df)  # returns WxDF from df, with attributes from _cf
+        wf = WxDF(df)     # returns WxDF from df, with attributes empty
 
-    loads the saved for the first city in the Cities.csv table. Typing `df` by
-    itself in iPython will print a summary of the data.
+    Typing `wf` by itself in iPython will print a summary of the data.
     """
     _nonHeadRows = 25
     _dataTypes = { #0: np.datetime64,  # "Date/Time" (not used as it is index)
@@ -159,27 +160,32 @@ class WxDF(pd.DataFrame):
             self.type = ''
             self.path = ''
             self.period = ''
+
         # Add a minimum 10-year baseline. Try period up to 1920, otherwise
         # try 1961-1990, otherwise 10 years from beginning, otherwise,
         # just first year.
-        bls = 0
-        ble = 1920
-        fy = self.index[0].year
-        bls = max([fy, bls])
-        if bls < ble-10:
-            self.baseline = [bls, ble]
-            return
-        bls = 1961
-        ble = 1990
-        bls = max([fy, bls])
-        if bls < ble-10:
-            self.baseline = [bls, ble]
-            return
-        ly = self.index[-1].year
-        if ly-fy < 10:
-            self.baseline = [fy, fy]
+        # Pre-1920 is the pre-industrial period. 1961-1990 highlights change
+        # since around 1975 and is commonly used in literature.
+        gap = 10
+        if self.index[0] is pd.Timestamp:
+            fy = self.index[0].year
+            ly = self.index[-1].year
         else:
-            self.baseline = [fy, fy+10]
+            fy = self.index[0]
+            ly = self.index[-1]
+        if fy <= 1920 - gap:
+            bls = fy
+            ble = 1920
+        elif fy <= 1990 - gap:
+            bls = max([1961, fy])
+            ble = 1990
+        elif ly - fy >= gap-1:
+            bls = fy
+            ble = bls + gap-1
+        else:
+            bls = ble = fy
+        self.baseline = [bls, ble]
+
         return
 
     @property
@@ -322,6 +328,27 @@ class WxDF(pd.DataFrame):
         self.to_csv(file,
               float_format="% .1f")
 
+    def GetBaseAvg(self, col, range=None):
+        """Get the average value over the baseline period for a column.
+
+        Parameters
+        ----------
+        col : int or str
+            Column to get average for. Can be the column number, or its name.
+        range : list of ints opt default None
+            Optional range to compute over if not standard baseline. Must be
+            a list with the start and end years (inclusive), eg
+            ``range = [1975, 1990]``
+        """
+        if type(col) is str:
+            col = self.columns.get_loc(col)
+        if not range:
+            return self._baseavg[col]
+        else:
+            bls = range[0]
+            ble = range[1]
+            return self.iloc[bls:ble, col].mean()
+
     def GetFirstDay(self):
         """Return index to first day with valid data.
 
@@ -435,13 +462,13 @@ class WxDF(pd.DataFrame):
                             index=['Year'],
                             aggfunc=func)
 
-        # Now ma
+        # Now estimate current year based on rest of previous year
         cyr = self.Year[-1]  # get current year
-        lyr = cyr-1
+        pyr = cyr-1          # previous year
         dfc = self.loc[lambda df: df.Year == cyr]
         c = dfc.count()  # days in current year
 
-        dfl = self.loc[lambda df: df.Year == lyr]
+        dfl = self.loc[lambda df: df.Year == pyr]
         dfl = dfl.iloc[:c[labels[0]]] # make number of days same as current year
         pl = dfl.pivot_table(values=list(labels),
                             index=['Year'],
@@ -540,8 +567,7 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     for ci, col in enumerate(cols):
         s = yf[col]
         a = sm.WeightedMovingAverage(s, size)
-        baseline = s.loc[:1921].mean()
-        # TODO add a baseline range input
+        baseline = s.loc[df.baseline[0]:df.baseline[1]].mean()
         s = s - baseline
         a = a - baseline
         plt.plot(s, styles[ci][1], alpha=0.2, lw=1)
@@ -555,7 +581,7 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     plt.title("Change in " + df.city + "'s Annual Temperature")
 
     # Annotate chart
-    at.Baseline([yf.index[0], 1920])
+    at.Baseline(df.baseline)
     at.Attribute(source='Data: Environment Canada')
     plt.legend(loc=2)
 
@@ -585,9 +611,8 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     yf = df.GetYears(cols=cols)
     if change:
         for col in yf.columns:
-            yf[col] = yf[col] - yf[col][:30].mean()
-            # TODO use years instead of index
-            # TODO allow input of range
+            baseline = yf.loc[df.baseline[0]:df.baseline[1],col].mean()
+            yf[col] = yf[col] - baseline
     ma = [sm.WeightedMovingAverage(yf[col], size) for col in yf.columns]
     fig = plt.figure(fignum)
     fig.clear()
@@ -600,7 +625,7 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     plt.xlabel('Year')
     plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
-    at.Baseline([yf.index[0], yf.index[30]])
+    at.Baseline(df.baseline)
 
     at.AddYAxis(ax)
     fig.show()
