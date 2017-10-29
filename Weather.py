@@ -167,7 +167,7 @@ class WxDF(pd.DataFrame):
         # Pre-1920 is the pre-industrial period. 1961-1990 highlights change
         # since around 1975 and is commonly used in literature.
         gap = 10
-        if self.index[0] is pd.Timestamp:
+        if type(self.index[0]) == pd.Timestamp:
             fy = self.index[0].year
             ly = self.index[-1].year
         else:
@@ -328,26 +328,32 @@ class WxDF(pd.DataFrame):
         self.to_csv(file,
               float_format="% .1f")
 
-    def GetBaseAvg(self, col, range=None):
+    def GetBaseAvg(self, col=None, range=None):
         """Get the average value over the baseline period for a column.
 
         Parameters
         ----------
-        col : int or str
+        col : int or str default None
             Column to get average for. Can be the column number, or its name.
+            If None, all columns are returned.
         range : list of ints opt default None
             Optional range to compute over if not standard baseline. Must be
             a list with the start and end years (inclusive), eg
             ``range = [1975, 1990]``
         """
-        if type(col) is str:
-            col = self.columns.get_loc(col)
+        if col and type(col) is int:
+            col = self.columns[col]
         if not range:
-            return self._baseavg[col]
+            bls = self.baseline[0]
+            ble = self.baseline[1]
         else:
             bls = range[0]
             ble = range[1]
-            return self.iloc[bls:ble, col].mean()
+        if col:
+            return self.loc[bls:ble, col].mean()
+        else:
+            return self.loc[bls:ble].mean()
+
 
     def GetFirstDay(self):
         """Return index to first day with valid data.
@@ -405,10 +411,10 @@ class WxDF(pd.DataFrame):
         avgs = avgs[label]  # turn into simple dataframe for simplicity
         colnames = dict(zip(list(range(13)), monthS))
         avgs.rename(columns=colnames, inplace=True)
-        avgs.city = self.city
-        avgs.period = 'monthly'
-        avgs.type = func.__name__ + ' ' + label
-        return avgs
+        mf = WxDF(self.id, avgs)
+        mf.period = 'monthly'
+        mf.type = func.__name__ + ' ' + label
+        return mf
 
     def GetMonth(self, cols=[4, 6], month=None, func=np.mean):
         """Convert daily data to yearly data for a particular month
@@ -437,12 +443,13 @@ class WxDF(pd.DataFrame):
         mf = yf.pivot_table(values=labels,
                               index=['Year'],
                               aggfunc=func)
-        mf.city = self.city
+        mf = WxDF(self.id, mf[labels])
+
         mf.period = 'annual'
-        mf.type = func.__name__
+        mf.type = func.__name__.title() + ' for ' + monthL[month]
         # Columns possibly in wrong order, so make sure they're ordered
         # as given.
-        return mf[labels]
+        return mf
 
     def GetYears(self, cols=[4, 6, 8], func=np.mean):
         """Convert daily data to yearly data.
@@ -468,22 +475,20 @@ class WxDF(pd.DataFrame):
         dfc = self.loc[lambda df: df.Year == cyr]
         c = dfc.count()  # days in current year
 
-        dfl = self.loc[lambda df: df.Year == pyr]
-        dfl = dfl.iloc[:c[labels[0]]] # make number of days same as current year
-        pl = dfl.pivot_table(values=list(labels),
+        dfp = self.loc[lambda df: df.Year == pyr]
+        dfp = dfp.iloc[:c[labels[0]]] # make number of days same as current year
+        pl = dfp.pivot_table(values=list(labels),
                             index=['Year'],
                             aggfunc=func)
         # adjust current year by last year's change from current day to year end
         for i in range(len(labels)):
             yf.iloc[-1, i] = (yf.iloc[-2, i] - pl.iloc[0, i]) + yf.iloc[-1, i]
 
-        yf.city = self.city
+        yf = WxDF(self.id, yf[labels])
         yf.period = 'annual'
-        yf.type = func.__name__
+        yf.type = func.__name__.title() + ' for Year'
 
-        # Columns possibly in wrong order, so make sure they're ordered
-        # as given.
-        return yf[labels]
+        return yf
 
 def GridPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
@@ -558,18 +563,17 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     """
 
     yf = df.GetYears(cols=cols)
+    yf = yf - yf.GetBaseAvg()
     styles = [['r-', 'ro-'], ['c-', 'co-'], ['k-', 'ko-']]
     cols = yf.columns
 
     fig = plt.figure(fignum)
     fig.clear()  # May have been used before
     ax = fig.add_subplot(111)
+
     for ci, col in enumerate(cols):
         s = yf[col]
         a = sm.WeightedMovingAverage(s, size)
-        baseline = s.loc[df.baseline[0]:df.baseline[1]].mean()
-        s = s - baseline
-        a = a - baseline
         plt.plot(s, styles[ci][1], alpha=0.2, lw=1)
         plt.plot(a, styles[ci][0], alpha=0.75, label='Trend', lw=5)
         # fit line to recent data
@@ -610,9 +614,7 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     """
     yf = df.GetYears(cols=cols)
     if change:
-        for col in yf.columns:
-            baseline = yf.loc[df.baseline[0]:df.baseline[1],col].mean()
-            yf[col] = yf[col] - baseline
+        yf = yf - yf.GetBaseAvg()
     ma = [sm.WeightedMovingAverage(yf[col], size) for col in yf.columns]
     fig = plt.figure(fignum)
     fig.clear()
@@ -648,9 +650,7 @@ def ErrorPlot(df, cols=[8], size=21, fignum=3):
         Figure number to use. Useful if multiple plots are required.
     """
     yf = df.GetYears(cols)
-    yf = yf - yf.iloc[:30].mean()
-    # TODO convert from index to years
-    # TODO allow input of a range
+    yf = yf - yf.GetBaseAvg()
     col = yf.columns[0]
     ma = sm.WeightedMovingAverage(yf[col], size)
     err = (ma - yf[col])**2
@@ -1145,10 +1145,7 @@ def CompareWeighting(df, cols=[8], size=31, fignum=20):
     plt.legend(loc='upper left')
     plt.ylabel('Temperature Change from Baseline (°C)')
     # Annotate chart
-    bx = [yf.index[0], yf.index[0], yf.index[30], yf.index[30]]
-    by = [-.3, -.4, -.4, -.3]
-    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
-    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
+    at.Baseline(df.baseline)
 
     plt.show()
 
@@ -1206,10 +1203,7 @@ def CompareSmoothing(df, cols=[8],
     plt.legend(loc='upper left')
     plt.ylabel('Temperature Change from Baseline (°C)')
     # Annotate chart
-    bx = [yf.index[0], yf.index[0], yf.index[30], yf.index[30]]
-    by = [-.3, -.4, -.4, -.3]
-    plt.plot(bx, by, 'k-', linewidth=2, alpha=0.5)
-    plt.text(bx[1], by[1]-0.15, 'Baseline', size='larger')
+    at.Baseline(df.baseline)
     boxt = ("Moving Average:\n"
            "  Weights: Cosine (Hanning)\n"
            "  Size: {0}\n"
