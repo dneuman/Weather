@@ -53,20 +53,54 @@ plt.style.use('weather')
 # matplotlib.style.library is a dictionary of available styles
 # user styles can be placed in ~/.matplotlib/
 
-basepath = '/Users/Dan/Documents/Weather/Stations/'
 
-monthS = ['Yr ', 'Jan', 'Feb', 'Mar', 'Apr',
-          'May', 'Jun', 'Jul', 'Aug',
-          'Sep', 'Oct', 'Nov', 'Dec']
-monthL = ['Year', 'January', 'February', 'March', 'April',
-          'May', 'June', 'July', 'August',
-          'September', 'October', 'November', 'December']
-monthN = {'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4,
-          'May':5, 'Jun':6, 'Jul':7, 'Aug':8,
-          'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12,
-          'January':1, 'February':2, 'March':3, 'April':4,
-          'May':5, 'June':6, 'July':7, 'August':8,
-          'September':9, 'October':10, 'November':11, 'December':12}
+# TODO Make a class to consolidate settings to give consistent look and
+#      feel to plots. Eg linewidths, colours
+
+class Settings():
+    """Simple class to hold settings, making out of scope variables more
+       obvious. Use str(obj) to get list of settings.
+    """
+    basepath = '/Users/Dan/Documents/Weather/Stations/'
+    source = "Data: Environment Canada"
+    tlw = 3  # trend linewidth
+    dlw = 1  # data linewidth
+    ta = 0.8   # trend alpha
+    da = 0.3   # data alpha
+    sa = 0.15  # std dev alpha
+    ma = 0.1   # max/min alpha
+
+    monthS = {'doc':'Return short month name',
+              0:'Yr ', 1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr',
+              5:'May', 6:'Jun', 7:'Jul', 8:'Aug',
+              9:'Sep', 10:'Oct', 11:'Nov', 12:'Dec'}
+    monthL = {'doc':'Return long month name',
+              0:'Year', 1:'January', 2:'February', 3:'March', 4:'April',
+              5:'May', 6:'June', 7:'July', 8:'August',
+              9:'September', 10:'October', 11:'November', 12:'December'}
+    monthN = {'doc':'Return index for supplied long or short month name',
+              'Jan':1, 'Feb':2, 'Mar':3, 'Apr':4,
+              'May':5, 'Jun':6, 'Jul':7, 'Aug':8,
+              'Sep':9, 'Oct':10, 'Nov':11, 'Dec':12,
+              'January':1, 'February':2, 'March':3, 'April':4,
+              'May':5, 'June':6, 'July':7, 'August':8,
+              'September':9, 'October':10, 'November':11, 'December':12}
+
+    def __repr__(self):
+        s = "\nWeather Module Settings:\n\n"
+        for key, value in Settings.__dict__.items():
+            if type(key) != str:
+                continue
+            if key.startswith('_'):
+                continue
+            if type(value)==dict:
+                s = s + '{:<8} dict: {}\n'.format((key+':'), value['doc'])
+            else:
+                s = s + '{:<8} {}\n'.format((key+':'), repr(value))
+        return s
+
+
+st = Settings()  # st contains system settings
 
 class WxDF(pd.DataFrame):
     """Weather data management class
@@ -142,7 +176,7 @@ class WxDF(pd.DataFrame):
             if len(args) == 2 and type(args[1]) == pd.DataFrame:
                 df = args[1]
             else:
-                df = pd.read_csv(basepath+WxDF._cf.path[id],
+                df = pd.read_csv(st.basepath+WxDF._cf.path[id],
                                  index_col=0,
                                  header=0,
                                  dtype=WxDF._dataTypes,
@@ -322,7 +356,7 @@ class WxDF(pd.DataFrame):
         """Save consolidated weather data into a .csv file. Directories are
         created as required.
         """
-        file = "".join([basepath, self.path])
+        file = "".join([st.basepath, self.path])
         p = pathlib.Path(file)
         p.parent.mkdir(parents=True, exist_ok=True)
         self.to_csv(file,
@@ -409,7 +443,7 @@ class WxDF(pd.DataFrame):
                               columns=['Month'],
                               aggfunc=func)
         avgs = avgs[label]  # turn into simple dataframe for simplicity
-        colnames = dict(zip(list(range(13)), monthS))
+        colnames = dict(zip(list(range(13)), st.monthS))
         avgs.rename(columns=colnames, inplace=True)
         mf = WxDF(self.id, avgs)
         mf.period = 'monthly'
@@ -446,7 +480,7 @@ class WxDF(pd.DataFrame):
         mf = WxDF(self.id, mf[labels])
 
         mf.period = 'annual'
-        mf.type = func.__name__.title() + ' for ' + monthL[month]
+        mf.type = func.__name__.title() + ' for ' + st.monthL[month]
         # Columns possibly in wrong order, so make sure they're ordered
         # as given.
         return mf
@@ -564,7 +598,7 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
 
     yf = df.GetYears(cols=cols)
     yf = yf - yf.GetBaseAvg()
-    styles = [['r-', 'ro-'], ['c-', 'co-'], ['k-', 'ko-']]
+    styles = [['r-', 'ro-'], ['b-', 'bo-'], ['g-', 'go-']]
     cols = yf.columns
 
     fig = plt.figure(fignum)
@@ -574,8 +608,8 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     for ci, col in enumerate(cols):
         s = yf[col]
         a = sm.WeightedMovingAverage(s, size)
-        plt.plot(s, styles[ci][1], alpha=0.2, lw=1)
-        plt.plot(a, styles[ci][0], alpha=0.75, label='Trend', lw=5)
+        plt.plot(s, styles[ci][1], alpha=st.da, lw=st.dlw)
+        plt.plot(a, styles[ci][0], alpha=st.talpha, label='Trend', lw=st.tlw)
         # fit line to recent data
         at.AddRate(s.loc[1970:])
 
@@ -586,7 +620,7 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
 
     # Annotate chart
     at.Baseline(df.baseline)
-    at.Attribute(source='Data: Environment Canada')
+    at.Attribute(source=st.source)
     plt.legend(loc=2)
 
     at.AddYAxis(ax)
@@ -657,19 +691,23 @@ def ErrorPlot(df, cols=[8], size=21, fignum=3):
     std = err.mean()**0.5
     fig = plt.figure(fignum)
     fig.clear()
-    plt.plot(yf[col], 'ko-', lw=1, alpha=0.2,
-             label=(df.city+' '+col))
-    plt.plot(ma, 'r-', alpha=0.5, lw=2, label='Weighted Moving Average')
-    plt.fill_between(ma.index, ma.values+std, ma.values-std,
+    ax = fig.add_subplot(111)
+    ax.plot(yf[col], 'ko-', lw=st.dlw, alpha=st.da,
+             label=' '.join([df.city, col]))
+    ax.plot(ma, 'r-', alpha=st.ta, lw=st.tlw,
+            label='Trend')
+    ax.fill_between(ma.index, ma.values+std, ma.values-std,
                      color='red', alpha=0.15, label='68%')
-    plt.fill_between(ma.index, ma.values+2*std, ma.values-2*std,
+    ax.fill_between(ma.index, ma.values+2*std, ma.values-2*std,
                      color='red', alpha=0.10, label='95%')
 
     # Annotate chart
     plt.legend(loc='upper left')
     plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.ylabel('Temperature Change from Baseline (°C)')
-    at.Baseline([yf.index[0], yf.index[30]])
+    at.Baseline(yf.baseline)
+    at.Attribute(source=st.source)
+    # TODO Figure out weird Attribute placement
 
     plt.show()
 
@@ -1020,7 +1058,7 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
         mnm = nf.GetYears([4, 6, 8], func=np.min)
 
     # PLOTTING
-    title = 'Temperature Range in '+df.city+' for '+monthL[month]
+    title = 'Temperature Range in '+df.city+' for '+ st.monthL[month]
     fig = plt.figure(fignum)
     fig.clear()
     if not combine:  # create two separate plots
@@ -1038,17 +1076,17 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
         plt.title(title)
 
     ax0.fill_between(index, mxm[maxc], mnm[maxc],
-                     color='red', alpha=0.10, label='Upper/Lower Highs')
+                     color='red', alpha=st.ma, label='Upper/Lower Highs')
     ax1.fill_between(index, mxm[minc], mnm[minc],
-                     color='blue', alpha=0.10, label='Upper/Lower Lows')
+                     color='blue', alpha=st.ma, label='Upper/Lower Lows')
     ax0.fill_between(index, umaxt, lmaxt,
-                     color='red', alpha=0.15, label='68% Range Highs')
+                     color='red', alpha=st.sa, label='68% Range Highs')
     ax1.fill_between(index, umint, lmint,
-                     color='blue', alpha=0.15, label='68% Range Lows')
-    ax0.plot(af[maxc], 'r-', lw=2, alpha=0.5, label='Average Highs')
-    ax1.plot(af[minc], 'b-', lw=2, alpha=0.5, label='Average Lows')
+                     color='blue', alpha=st.sa, label='68% Range Lows')
+    ax0.plot(af[maxc], 'r-', lw=2, alpha=st.ta, label='Average Highs')
+    ax1.plot(af[minc], 'b-', lw=2, alpha=st.ta, label='Average Lows')
     if combine:
-        ax0.plot(af[avgc], 'k-', lw=2, alpha=0.5, label='Average Daily')
+        ax0.plot(af[avgc], 'k-', lw=st.tlw, alpha=st.ta, label='Average Daily')
 
     # Add current available month as distinct points
     ly = avm.index[-1]
@@ -1103,7 +1141,7 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
         ax0.text(x, y, 'Month Average',
                  ha='center', va='bottom', size='smaller')
 
-    at.Attribute(source='Data: Environment Canada')
+    at.Attribute(source=st.source)
     # TODO: Figure out why Attribute puts text in such an odd place.
 
     at.AddYAxis(ax0)
