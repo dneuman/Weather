@@ -34,6 +34,68 @@ def Hanning(size):
     w = np.array(w[1:-1])  # remove zeros at endpoints
     return (w / max(w))
 
+def Padded(s, size, type='linear'):
+    """Takes a series and returns a version padded at both ends.
+
+    Parameters
+    ----------
+    s : pd.Series
+        Series to be padded
+    size : int
+        Size of window being used. The returned series will be
+        (size - 2) bigger than the supplied series.
+    type : str ['linear' | 'mirror'] default 'linear'
+        Type of padding to use. 'Linear' fits a line to the end data of length
+        ``size`` and uses that to fill the start and end padding. 'Mirror'
+        copies and reflects the data instead.
+
+    Notes
+    -----
+    'mirror' uses actual data for padding, but results in zero-slope
+    (horizontal) end points. 'linear' will usually give better results.
+    """
+    n = len(s)
+    hw = int(size/2)  # half-window size
+    tx = np.array(s.index)
+    ty = np.array(s.values)
+    x = np.zeros(n + 2 * hw)
+    y = np.zeros(n + 2 * hw)
+
+    # x-value intervals are mirrored in both cases
+    for i in range(hw):  # pad beginning
+        x[i] = tx[0] - (tx[hw-i] - tx[0])
+    for i in range(n):  # add actual data
+        x[i+hw] = tx[i]
+    for i in range(hw):  # pad end
+        x[i+hw+n] = tx[n-1] + (tx[n-1] - tx[n-2-i])
+    for i in range(n):  # add actual data
+        y[i+hw] = ty[i]
+
+    if type.lower() == 'mirror':
+        # pad data as a reflection of original data. eg use indexes:
+        # 2, 1, 0, 1, 2, 3, 4, 5 and
+        # n-3, n-2, n-1, n-2, n-3, n-4
+        # x values keep the distances between them but go backwards at end and
+        # forward at the end. y values are not changed.
+        for i in range(hw):  # pad beginning
+            y[i] = ty[hw-i]
+        for i in range(hw):  # pad end
+            y[i+hw+n] = ty[n-2-i]
+    else:
+        # use 'linear' for any other input
+        # fit start
+        c = np.polyfit(tx[:hw], ty[:hw], 1)            # fit a line to data
+        p = np.poly1d(c)
+        y[:hw] = p(x[:hw])
+        # fit end
+        c = np.polyfit(tx[-hw:], ty[-hw:], 1)            # fit a line to data
+        p = np.poly1d(c)
+        y[-hw:] = p(x[-hw:])
+
+    return pd.Series(y, index=x)
+
+
+
 def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     """Fits a nonparametric regression curve to a scatterplot.
 
@@ -136,7 +198,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     else:
         return pd.Series(yEst, index=data.index, name='Trend')
 
-def WeightedMovingAverage(fs, size, pad=True, winType=Hanning, wts=None):
+def a(fs, size, pad=True, winType=Hanning, wts=None):
     """Apply a weighted moving average on the supplied series.
 
     Parameters
