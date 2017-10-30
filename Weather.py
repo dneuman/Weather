@@ -53,23 +53,21 @@ plt.style.use('weather')
 # matplotlib.style.library is a dictionary of available styles
 # user styles can be placed in ~/.matplotlib/
 
-
-# TODO Make a class to consolidate settings to give consistent look and
-#      feel to plots. Eg linewidths, colours
-
 class Settings():
     """Simple class to hold settings, making out of scope variables more
        obvious. Use str(obj) to get list of settings.
     """
     basepath = '/Users/Dan/Documents/Weather/Stations/'
     source = "Data: Environment Canada"
-    tlw = 3  # trend linewidth
+    tlw = 4  # trend linewidth
     dlw = 1  # data linewidth
     ta = 0.8   # trend alpha
     da = 0.3   # data alpha
     sa = 0.15  # std dev alpha
     ma = 0.1   # max/min alpha
 
+    colors = {'doc':'Color from cycle to use per column',
+              4:'C0', 6:'C1', 8:'C2'} # colors to use per column
     monthS = {'doc':'Return short month name',
               0:'Yr ', 1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr',
               5:'May', 6:'Jun', 7:'Jul', 8:'Aug',
@@ -93,7 +91,7 @@ class Settings():
                 continue
             if key.startswith('_'):
                 continue
-            if type(value)==dict:
+            if type(value)==dict and 'doc' in value:
                 s = s + '{:<8} dict: {}\n'.format((key+':'), value['doc'])
             else:
                 s = s + '{:<8} {}\n'.format((key+':'), repr(value))
@@ -598,7 +596,6 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
 
     yf = df.GetYears(cols=cols)
     yf = yf - yf.GetBaseAvg()
-    styles = [['r-', 'ro-'], ['b-', 'bo-'], ['g-', 'go-']]
     cols = yf.columns
 
     fig = plt.figure(fignum)
@@ -608,10 +605,12 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     for ci, col in enumerate(cols):
         s = yf[col]
         a = sm.WeightedMovingAverage(s, size)
-        plt.plot(s, styles[ci][1], alpha=st.da, lw=st.dlw)
-        plt.plot(a, styles[ci][0], alpha=st.talpha, label='Trend', lw=st.tlw)
+        line = ax.plot(s, 'o-', alpha=st.da, lw=st.dlw)
+        ax.plot(a, '-', alpha=st.ta, lw=st.tlw,
+                 label='Trend', color=line[0].get_color())
         # fit line to recent data
         at.AddRate(s.loc[1970:])
+        # TODO Rate text in wrong place when 2 or more lines
 
     # Label chart
     plt.ylabel('Temperature Change From Baseline (°C)')
@@ -628,7 +627,7 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     return
 
 
-def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
+def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, rate=False, fignum=2):
     """Simple smoothed plots with optional baseline.
 
     Parameters
@@ -654,7 +653,8 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     fig.clear()
     ax = fig.add_subplot(111)
     for i, y in enumerate(ma):
-        plt.plot(y, '-', alpha=0.5, linewidth=2, label=yf.columns[i])
+        ax.plot(y, '-', alpha=st.ta, linewidth=st.tlw, label=yf.columns[i])
+        if rate: at.AddRate(y.loc[1970:])
 
     # Annotate
     plt.ylabel('Temperature Change from Baseline (°C)')
@@ -662,6 +662,7 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, fignum=2):
     plt.title("Change in " + df.city + "'s Annual Temperature")
     plt.legend(loc='upper left')
     at.Baseline(df.baseline)
+    at.Attribute(source=st.source)
 
     at.AddYAxis(ax)
     fig.show()
@@ -683,6 +684,7 @@ def ErrorPlot(df, cols=[8], size=21, fignum=3):
     fignum : in opt default 3
         Figure number to use. Useful if multiple plots are required.
     """
+    c = st.colors[cols[0]]
     yf = df.GetYears(cols)
     yf = yf - yf.GetBaseAvg()
     col = yf.columns[0]
@@ -692,14 +694,15 @@ def ErrorPlot(df, cols=[8], size=21, fignum=3):
     fig = plt.figure(fignum)
     fig.clear()
     ax = fig.add_subplot(111)
-    ax.plot(yf[col], 'ko-', lw=st.dlw, alpha=st.da,
-             label=' '.join([df.city, col]))
-    ax.plot(ma, 'r-', alpha=st.ta, lw=st.tlw,
-            label='Trend')
+    ax.plot(yf[col], 'o-', lw=st.dlw, alpha=st.da,
+            label=' '.join([df.city, col]), color=c)
+    #c = line[0].get_color()
+    ax.plot(ma, '-', alpha=st.ta, lw=st.tlw,
+            label='Trend', color=c)
     ax.fill_between(ma.index, ma.values+std, ma.values-std,
-                     color='red', alpha=0.15, label='68%')
+                     color=c, alpha=st.sa, label='68%')
     ax.fill_between(ma.index, ma.values+2*std, ma.values-2*std,
-                     color='red', alpha=0.10, label='95%')
+                     color=c, alpha=st.ma, label='95%')
 
     # Annotate chart
     plt.legend(loc='upper left')
@@ -906,8 +909,8 @@ def SnowPlot(df, fignum=6):
         plt.plot(list(r.index),
                  list(r[col]),
                  p[2],
-                 linewidth=2,
-                 alpha=0.5,
+                 linewidth=st.tlw,
+                 alpha=st.ta,
                  label=col)
         # Convert dates to day of year, get moving average, convert back
         # to actual date, then plot
