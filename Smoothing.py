@@ -198,12 +198,12 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     else:
         return pd.Series(yEst, index=data.index, name='Trend')
 
-def a(fs, size, pad=True, winType=Hanning, wts=None):
+def WeightedMovingAverage(fs, size, pad=True, winType=Hanning, wts=None):
     """Apply a weighted moving average on the supplied series.
 
     Parameters
     ----------
-    s : pandas.Series
+    fs : pandas.Series
         data to be averaged
     size : integer
         how wide a window to use
@@ -264,13 +264,8 @@ def a(fs, size, pad=True, winType=Hanning, wts=None):
     # np.average() effectively scales the weights for the different sizes.
     if pad: # pad the data with reflected values
         # create padded beginning
-        y = np.zeros(n+2*hw)
-        for i in range(hw):
-            y[i] = s.iloc[hw-i]
-        for i in range(hw):
-            y[i+n+hw] = s.iloc[n-i-1]
-        for i in range(n):
-            y[i+hw] = s.iloc[i]
+        ps = Padded(s, size)
+        y = ps.values
         yc = np.convolve(y, window, mode='same')
         a = pd.Series(yc[hw:n+hw],
                       index=s.index,
