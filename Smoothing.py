@@ -19,10 +19,8 @@ def Triangle(size, clip=1.0):
     size : int
         Length of the returned weights
 
-    **Optionals**
-
-    clip : float
-        Any weight above `clip` will be forced to `clip`.
+    clip : float default 1.0
+        Any weight above ``clip`` will be forced to ``clip``.
     """
     w = np.bartlett(size+2)
     w = w[1:-1]  # remove zeros at endpoints
@@ -55,28 +53,24 @@ def Padded(s, size, type='linear'):
     (horizontal) end points. 'linear' will usually give better results.
     """
     n = len(s)
-    hw = int(size/2)  # half-window size
+    hw = size//2  # half-window size
     tx = np.array(s.index)
     ty = np.array(s.values)
     x = np.zeros(n + 2 * hw)
     y = np.zeros(n + 2 * hw)
+    x[hw:hw+n] = tx  # add actual data
+    y[hw:hw+n] = ty
 
     # x-value intervals are mirrored in both cases
     for i in range(hw):  # pad beginning
         x[i] = tx[0] - (tx[hw-i] - tx[0])
-    for i in range(n):  # add actual data
-        x[i+hw] = tx[i]
     for i in range(hw):  # pad end
         x[i+hw+n] = tx[n-1] + (tx[n-1] - tx[n-2-i])
-    for i in range(n):  # add actual data
-        y[i+hw] = ty[i]
 
     if type.lower() == 'mirror':
-        # pad data as a reflection of original data. eg use indexes:
+        # pad data as a reflection of original data. eg use index values:
         # 2, 1, 0, 1, 2, 3, 4, 5 and
         # n-3, n-2, n-1, n-2, n-3, n-4
-        # x values keep the distances between them but go backwards at end and
-        # forward at the end. y values are not changed.
         for i in range(hw):  # pad beginning
             y[i] = ty[hw-i]
         for i in range(hw):  # pad end
@@ -94,9 +88,35 @@ def Padded(s, size, type='linear'):
 
     return pd.Series(y, index=x)
 
+def Smooth(s, size, pad='linear', trend='wma', follow=2):
+    """Convenience function to easily choose different smoothing algorithms.
 
+    Parameters
+    ----------
+    s : pd.Series
+        Series containing data to be smoothed
+    size : int
+        Window size which determines how much data to look at for smoothing.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which algorithm to use. Defaults fo 'wma' if input is not recognized.
+    follow : int [1 | 2] default 2
+        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
+        Applied to polynomial order for 'lowess', and number of components
+        for 'ssa'.
+    """
 
-def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
+    if trend == 'lowess':
+        a = Lowess(s, pts=size, order=follow, pad=pad)
+    elif trend == 'ssa':
+        a = SSA(s, size, rtnRC=follow, pad=pad)
+        a = a.sum(axis=1)
+    else:
+        a = WeightedMovingAverage(s, size, pad=pad)
+    return a
+
+def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
     """Fits a nonparametric regression curve to a scatterplot.
 
     Parameters
@@ -120,14 +140,16 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
         The order of the polynomial used for fitting. Defaults to 1
         (straight line). Values < 1 are made 1. Larger values should be
         chosen based on shape of data (# of peaks and valleys + 1)
-    pad : Boolean
-        If True, will pad the data and the beginning and end by the amount
-        of data used for smoothing (f*n or pts). This may provide better
-        tracking of data at the ends.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
 
     Returns
     -------
     pandas.Series containing the smoothed data.
+
+    Notes
+    -----
+    Surprisingly works with pd.DateTime index values.
     """
     # Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
     #            original
@@ -145,28 +167,13 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     r = min([r, n-1])
     order = max([1, order])
     if pad:
-        tx = np.array(data.index, dtype=float)
-        ty = data.values
-        x = np.zeros(len(data)+2*r)
-        y = np.zeros(len(data)+2*r)
-        # pad data as a reflection of original data. eg use indexes:
-        # 2, 1, 0, 1, 2, 3, 4, 5 and
-        # n-3, n-2, n-1, n-2, n-3, n-4
-        # x values keep the distances between them but go backwards at end and
-        # forward at the end. y values are not changed.
-        for i in range(r):  # pad beginning
-            x[i] = tx[0] - (tx[r-i] - tx[0])
-            y[i] = ty[r-i]
-        for i in range(n):  # add actual data
-            x[i+r] = tx[i]
-            y[i+r] = ty[i]
-        for i in range(r):  # pad end
-            x[i+r+n] = tx[n-1] + (tx[n-1] - tx[n-2-i])
-            y[i+r+n] = ty[n-2-i]
+        s = Padded(data, r*2, pad=pad)
+        x = np.array(s.index)
+        y = np.array(s.values)
         n = len(y)
     else:
-        x = np.array(data.index, dtype=float)
-        y = data.values
+        x = np.array(data.index)
+        y = np.array(data.values)
     # condition x-values to be between 0 and 1 to reduce errors in linalg
     x = x - x.min()
     x = x / x.max()
@@ -198,7 +205,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad=True):
     else:
         return pd.Series(yEst, index=data.index, name='Trend')
 
-def WeightedMovingAverage(fs, size, pad=True, winType=Hanning, wts=None):
+def WeightedMovingAverage(fs, size, pad='linear', winType=Hanning, wts=None):
     """Apply a weighted moving average on the supplied series.
 
     Parameters
@@ -207,11 +214,8 @@ def WeightedMovingAverage(fs, size, pad=True, winType=Hanning, wts=None):
         data to be averaged
     size : integer
         how wide a window to use
-    pad : Boolean (optional, default = True)
-        flag determining whether to pad beginning and end of data with a
-        weighted average of the last `size` points. This provides better
-        smoothing at the beginning and end of the line, but it tends to have
-        zero slope.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
     winType : Function (optional, default = Hanning)
         Window function that takes an integer (window size) and returns a list
         of weights to be applied to the data. The default is Hanning, a
@@ -282,7 +286,7 @@ def WeightedMovingAverage(fs, size, pad=True, winType=Hanning, wts=None):
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
     return a
 
-def SSA(s, m, rtnRC=1, pad=True):
+def SSA(s, m, rtnRC=1, pad='linear'):
     """Implement Singular Spectrum Analysis for pandas Series
 
     Parameters
@@ -300,9 +304,8 @@ def SSA(s, m, rtnRC=1, pad=True):
         Number of reconstructed principles to return. Set to None to get all
         of them. Most smoothing is done in first returned column, but other
         columns may be useful to see periodicities.
-    pad : Boolean
-        Flad to pad data and principle components instead of using zeros.
-        Reflected data is used, mirrored around the end point near the zeros.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
 
     Returns
     -------
@@ -334,7 +337,7 @@ def SSA(s, m, rtnRC=1, pad=True):
              1.1815997, - 1.4969448, - 0.7455299, 1.0973884, - 0.2188716,
              - 1.0719573, 0.9922009, 0.4374216, - 1.6880219, 0.2609807]
 
-        rc = SSA(pd.Series(y), 4, allRC=None, pad=False)
+        rc = SSA(pd.Series(y), 4, allRC=None, pad=None)
         plt.plot(rc)
         plt.show()
 
@@ -345,14 +348,17 @@ def SSA(s, m, rtnRC=1, pad=True):
                -0.68,  0.24])
 
     """
-    n = len(s)
-    y = np.array(s.values)
+
+    if pad:
+        ps = Padded(s, m*2, type=pad)
+        y = np.array(ps.values)
+    else:
+        y = np.array(s.values)
+    n = len(y)
     mr = range(m)
-    avg = y[int(n*0.9):].mean()  # use last 10% average to pad
-    ys = np.ones((n,m)) * avg    # time shifted y-values
+    ys = np.ones((n,m))    # time shifted y-values
     for i in mr:
         ys[:n-i,i] = y[i:]
-        if pad: ys[n-i:,i] = y[n-2:n-i-2:-1] # reflect end data
     # get autocorrelation at first `order` time lags
     cor = np.correlate(y, y, mode='full')[n-1:n-1+m]/n
     # make toeplitz matrix (diagonal, symmetric)
@@ -370,7 +376,8 @@ def SSA(s, m, rtnRC=1, pad=True):
         z = np.zeros((n, m))
         for i in mr:  # make time shifted principle component matrix
             z[i:,i] = pc[:n-i, j]
-            if pad: z[:i,i] = pc[i:0:-1, j]  # reflect beginning data
         rc[:,j] = z.dot(rho[:, j]) / m
+    if pad:
+        rc = rc[m:n-m]
     return pd.DataFrame(rc, index=s.index)
 

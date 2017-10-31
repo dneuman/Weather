@@ -67,7 +67,9 @@ class Settings():
     ma = 0.1   # max/min alpha
 
     colors = {'doc':'Color from cycle to use per column',
-              4:'C0', 6:'C1', 8:'C2'} # colors to use per column
+              'Max Temp (°C)':'C0', 4:'C0',
+              'Min Temp (°C)':'C1', 6:'C1',
+              'Mean Temp (°C)':'C2', 8:'C2'} # colors to use per column
     monthS = {'doc':'Return short month name',
               0:'Yr ', 1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr',
               5:'May', 6:'Jun', 7:'Jul', 8:'Aug',
@@ -572,7 +574,7 @@ def GridPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-def TempPlot(df, cols=[8], size=21, fignum=1):
+def TempPlot(df, cols=[8], size=21, pad='linear', trend='wma', fignum=1):
     """Plot indicated columns of data, including the moving average.
 
     Parameters
@@ -585,6 +587,10 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     size : int opt default 21
         Size of the moving average window. Larger values give smoother
         results.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        What kind of padding to use on the trend line
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which smoothing algorithm to use.
     fignum : in opt default 1
         Figure number to use. Useful if multiple plots are required.
 
@@ -602,12 +608,13 @@ def TempPlot(df, cols=[8], size=21, fignum=1):
     fig.clear()  # May have been used before
     ax = fig.add_subplot(111)
 
-    for ci, col in enumerate(cols):
+    for col in cols:
         s = yf[col]
-        a = sm.WeightedMovingAverage(s, size)
-        line = ax.plot(s, 'o-', alpha=st.da, lw=st.dlw)
+        c = st.colors[col]
+        a = sm.Smooth(s, size, pad, trend)
+        ax.plot(s, 'o-', alpha=st.da, lw=st.dlw, color=c)
         ax.plot(a, '-', alpha=st.ta, lw=st.tlw,
-                 label='Trend', color=line[0].get_color())
+                 label='Trend', color=c)
         # fit line to recent data
         at.AddRate(s.loc[1970:])
         # TODO Rate text in wrong place when 2 or more lines
