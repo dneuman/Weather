@@ -88,7 +88,7 @@ def Padded(s, size, type='linear'):
 
     return pd.Series(y, index=x)
 
-def Smooth(s, size, pad='linear', trend='wma', follow=2):
+def Smooth(s, size, pad='linear', trend='wma', follow=1):
     """Convenience function to easily choose different smoothing algorithms.
 
     Parameters
@@ -124,19 +124,16 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
     data : pandas.Series
         Data points in the scatterplot. The
         function returns the estimated (smooth) values of y.
-
-    **Optionals**
-
-    f : float
+    f : float default 2/3
         The fraction of the data set to use for smoothing. A
         larger value for f will result in a smoother curve.
-    pts : int
+    pts : int default None
         The explicit number of data points to be used for
         smoothing instead of f.
-    itn : int
+    itn : int default 3
         The number of robustifying iterations. The function will run
         faster with a smaller number of iterations.
-    order : int
+    order : int default 1
         The order of the polynomial used for fitting. Defaults to 1
         (straight line). Values < 1 are made 1. Larger values should be
         chosen based on shape of data (# of peaks and valleys + 1)
@@ -154,7 +151,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
     # Authors: Alexandre Gramfort <alexandre.gramfort@telecom-paristech.fr>
     #            original
     #          Dan Neuman <https://github.com/dneuman>
-    #            converted to Pandas series and extended to polynomials
+    #            converted to Pandas series, extended to polynomials,
     #            and added padding option.
     # License: BSD (3-clause)
 
@@ -167,7 +164,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
     r = min([r, n-1])
     order = max([1, order])
     if pad:
-        s = Padded(data, r*2, pad=pad)
+        s = Padded(data, r*2, type=pad)
         x = np.array(s.index)
         y = np.array(s.values)
         n = len(y)
@@ -201,9 +198,11 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
         delta = (1 - delta ** 2) ** 2
     if pad:
         n = len(data)
-        return pd.Series(yEst[r:n+r], index=data.index, name='Trend')
+        return pd.Series(yEst[r:n+r], index=data.index,
+                         name='Locally Weighted Smoothing')
     else:
-        return pd.Series(yEst, index=data.index, name='Trend')
+        return pd.Series(yEst, index=data.index,
+                         name='Locally Weighted Smoothing')
 
 def WeightedMovingAverage(fs, size, pad='linear', winType=Hanning, wts=None):
     """Apply a weighted moving average on the supplied series.
@@ -273,11 +272,11 @@ def WeightedMovingAverage(fs, size, pad='linear', winType=Hanning, wts=None):
         yc = np.convolve(y, window, mode='same')
         a = pd.Series(yc[hw:n+hw],
                       index=s.index,
-                      name=s.name)
+                      name='Weighted Moving Average')
     else: # clip window as available data decreases
         a = pd.Series(np.convolve(s, window, mode='same'),
                       index=s.index,
-                      name=s.name)
+                      name='Weighted Moving Average')
         for i in range(hw+1):  # fix the start
             (ds, de, ws, we) = SetLimits(i, hw)
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
@@ -379,5 +378,5 @@ def SSA(s, m, rtnRC=1, pad='linear'):
         rc[:,j] = z.dot(rho[:, j]) / m
     if pad:
         rc = rc[m:n-m]
-    return pd.DataFrame(rc, index=s.index)
+    return pd.DataFrame(rc, index=s.index, name='Singular Spectrum Analysis')
 
