@@ -1074,11 +1074,15 @@ def MonthRangePlot(nf, month=None, combine=True,
     mn = ef.pivot_table(values=[maxc, minc],
                            index=['Year'], aggfunc=np.min)
     for c in [maxc, minc]:
-        mx[c] = sm.Smooth(mx[c], size=short, trend, pad, follow)
-        mn[c] = sm.Smooth(mn[c], size=short, trend, pad, follow)
-        sf[c] = sm.Smooth(sf[c], size=long, trend, pad, follow)
+        mx[c] = sm.Smooth(mx[c], size=short,
+                          trend=trend, pad=pad, follow=follow)
+        mn[c] = sm.Smooth(mn[c], size=short,
+                          trend=trend, pad=pad, follow=follow)
+        sf[c] = sm.Smooth(sf[c], size=long,
+                          trend=trend, pad=pad, follow=follow)
     for c in [maxc, minc, avgc]:
-        af[c] = sm.Smooth(af[c], size=long, trend, pad, follow)
+        af[c] = sm.Smooth(af[c], size=long,
+                          trend=trend, pad=pad, follow=follow)
 
     umaxt = af[maxc] + sf[maxc]
     lmaxt = af[maxc] - sf[maxc]

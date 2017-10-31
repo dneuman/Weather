@@ -19,7 +19,7 @@ axes.labelsize: large
 axes.labelcolor: 555555
 axes.axisbelow: True       # grid/ticks are below elements (e.g., lines, text)
 
-#axes.prop_cycle: cycler('color', ['E24A33', '348ABD', '60BA42', '988ED5', '777777', 'FBC15E', 'FFB5B8'])
+axes.prop_cycle: cycler('color', ['E24A33', '348ABD', '60BA42', '988ED5', '777777', 'FBC15E', 'FFB5B8'])
                    # E24A33 : red
                    # 348ABD : blue
                    # 60BA42 : green
@@ -29,7 +29,7 @@ axes.axisbelow: True       # grid/ticks are below elements (e.g., lines, text)
                    # FFB5B8 : pink
 
 # consistent saturation and luminance
-axes.prop_cycle: cycler('color', ['cc4835', '3594cc', '5acc35', '988ED5', '777777', 'FBC15E', 'FFB5B8'])
+#axes.prop_cycle: cycler('color', ['cc4835', '3594cc', '5acc35', '988ED5', '777777', 'FBC15E', 'FFB5B8'])
                    # cc4835 : red
                    # 3594cc : blue
                    # 5acc35 : green

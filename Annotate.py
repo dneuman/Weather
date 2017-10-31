@@ -82,7 +82,7 @@ def Baseline(range):
         list containing first and last date of baseline range
         (e.g. [1890, 1920]). Must be in data units, not index values.
     """
-    ax = plt.gca()
+    ax = _gfa()
     if type(range) != list:
         print('Input to Baseline must be a list, eg [1850, 1920]')
         return
@@ -110,16 +110,16 @@ def Attribute(ha='right', va='bottom', source='', date=''):
     va : str ['top' | 'bottom'] opt default 'bottom'
         Vertical alignment of attribute
     source : str opt
-        Where data came from (shoult start with 'Data:'). Multi-line strings
+        Where data came from (should start with 'Data:'). Multi-line strings
         can be used (lines separated by newline), with space indents.
     date : str opt
         Date/year chart was made or data created. Usually just year.
     """
     ax = _gfa()
-    loc = {'top': .86,
-           'bottom': .12,
-           'left': .14,
-           'right': .89}
+    loc = {'top': .99,
+           'bottom': .01,
+           'left': .01,
+           'right': .99}
     text = ''
     if source != '':
         text = source + '\n'
