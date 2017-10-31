@@ -574,7 +574,8 @@ def GridPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-def TempPlot(df, cols=[8], size=21, pad='linear', trend='wma', fignum=1):
+def TempPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
+             fignum=1):
     """Plot indicated columns of data, including the moving average.
 
     Parameters
@@ -587,10 +588,14 @@ def TempPlot(df, cols=[8], size=21, pad='linear', trend='wma', fignum=1):
     size : int opt default 21
         Size of the moving average window. Larger values give smoother
         results.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        What kind of padding to use on the trend line
     trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
         Which smoothing algorithm to use.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        What kind of padding to use on the trend line
+    follow : int default 1
+        Determines how closely to follow the data. Only used for
+        'lowess' (determines the polynomial to use) and 'ssa' (determines
+        how many reconstructed principles to use).
     fignum : in opt default 1
         Figure number to use. Useful if multiple plots are required.
 
@@ -611,7 +616,7 @@ def TempPlot(df, cols=[8], size=21, pad='linear', trend='wma', fignum=1):
     for col in cols:
         s = yf[col]
         c = st.colors[col]
-        a = sm.Smooth(s, size, pad, trend)
+        a = sm.Smooth(s, size, trend, pad, follow)
         ax.plot(s, 'o-', alpha=st.da, lw=st.dlw, color=c)
         ax.plot(a, '-', alpha=st.ta, lw=st.tlw,
                  label='Trend', color=c)
@@ -634,7 +639,8 @@ def TempPlot(df, cols=[8], size=21, pad='linear', trend='wma', fignum=1):
     return
 
 
-def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, rate=False, fignum=2):
+def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, rate=False,
+              trend='wma', pad='linear', follow=1, fignum=2):
     """Simple smoothed plots with optional baseline.
 
     Parameters
@@ -649,13 +655,21 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, rate=False, fignum=2):
         results.
     change : boolean opt default True
         Show change from the baseline
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which smoothing algorithm to use.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        What kind of padding to use on the trend line
+    follow : int default 1
+        Determines how closely to follow the data. Only used for
+        'lowess' (determines the polynomial to use) and 'ssa' (determines
+        how many reconstructed principles to use).
     fignum : in opt default 2
         Figure number to use. Useful if multiple plots are required.
     """
     yf = df.GetYears(cols=cols)
     if change:
         yf = yf - yf.GetBaseAvg()
-    ma = [sm.WeightedMovingAverage(yf[col], size) for col in yf.columns]
+    ma = [sm.Smooth(yf[col], size, trend, pad, follow) for col in yf.columns]
     fig = plt.figure(fignum)
     fig.clear()
     ax = fig.add_subplot(111)
@@ -675,7 +689,8 @@ def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, rate=False, fignum=2):
     fig.show()
     return
 
-def ErrorPlot(df, cols=[8], size=21, fignum=3):
+def ErrorPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
+              fignum=3):
     """Show standard deviation of temperature from trend.
 
     Parameters
@@ -688,6 +703,14 @@ def ErrorPlot(df, cols=[8], size=21, fignum=3):
     size : int opt default 21
         Size of the moving average window. Larger values give smoother
         results.
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which smoothing algorithm to use.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        What kind of padding to use on the trend line
+    follow : int default 1
+        Determines how closely to follow the data. Only used for
+        'lowess' (determines the polynomial to use) and 'ssa' (determines
+        how many reconstructed principles to use).
     fignum : in opt default 3
         Figure number to use. Useful if multiple plots are required.
     """
@@ -695,7 +718,7 @@ def ErrorPlot(df, cols=[8], size=21, fignum=3):
     yf = df.GetYears(cols)
     yf = yf - yf.GetBaseAvg()
     col = yf.columns[0]
-    ma = sm.WeightedMovingAverage(yf[col], size)
+    ma = sm.Smooth(yf[col], size, trend, pad, follow)
     err = (ma - yf[col])**2
     std = err.mean()**0.5
     fig = plt.figure(fignum)
@@ -969,7 +992,8 @@ def HotDaysPlot(df, fignum=7):
     plt.title("Warm and Hot Days for "+df.city)
     plt.show()
 
-def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
+def MonthRangePlot(nf, month=None, combine=True,
+                   trend='wma', pad='linear', follow=1, fignum=8):
     """Get expected high and low temperatures for the supplied month.
 
     Parameters
@@ -979,12 +1003,17 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     month : int opt default None
         Desired month. The default gives current month. ``month=0`` gives
         plot for entire year.
-    pad : boolean opt default False
-        Use padding on trend line. Padding gives smoother lines at start and
-        end, but forces the line slope to 0.
     combine : boolean opt default True
         Combine the maximum and minimum temperatures onto one plot. Otherwise
         use two separate plots (which is easier to read).
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which smoothing algorithm to use.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        What kind of padding to use on the trend line
+    follow : int default 1
+        Determines how closely to follow the data. Only used for
+        'lowess' (determines the polynomial to use) and 'ssa' (determines
+        how many reconstructed principles to use).
     fignum : int opt default 8
         Figure number to use. Override if you want to see more than one plot
         at a time.
@@ -1021,12 +1050,12 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     mn = ef.copy()  # min, lowest value below mean
     # Get the daily average max, min, avg temps.
     for c in [maxc, minc, avgc]:
-        af[c] = sm.WeightedMovingAverage(df[c], size=vlong, pad=False)
+        af[c] = sm.Smooth(df[c], size=vlong, trend='wma', pad=None)
     # Get the error and standard deviation
     for c in [maxc, minc]:
         ef[c] = df[c] - af[c]
-        sf[c] = sm.WeightedMovingAverage(ef[c]**2,
-                      size=vlong, pad=False)**0.5
+        sf[c] = sm.Smooth(ef[c]**2,
+                      size=vlong, trend='wma', pad=None)**0.5
 
     if month != 0:
         # reduce to just correct month for desired frames
@@ -1045,11 +1074,11 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     mn = ef.pivot_table(values=[maxc, minc],
                            index=['Year'], aggfunc=np.min)
     for c in [maxc, minc]:
-        mx[c] = sm.WeightedMovingAverage(mx[c], size=short, pad=False)
-        mn[c] = sm.WeightedMovingAverage(mn[c], size=short, pad=False)
-        sf[c] = sm.WeightedMovingAverage(sf[c], size=long, pad=False)
+        mx[c] = sm.Smooth(mx[c], size=short, trend, pad, follow)
+        mn[c] = sm.Smooth(mn[c], size=short, trend, pad, follow)
+        sf[c] = sm.Smooth(sf[c], size=long, trend, pad, follow)
     for c in [maxc, minc, avgc]:
-        af[c] = sm.WeightedMovingAverage(af[c], size=long, pad=False)
+        af[c] = sm.Smooth(af[c], size=long, trend, pad, follow)
 
     umaxt = af[maxc] + sf[maxc]
     lmaxt = af[maxc] - sf[maxc]
@@ -1086,17 +1115,17 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
         plt.title(title)
 
     ax0.fill_between(index, mxm[maxc], mnm[maxc],
-                     color='red', alpha=st.ma, label='Upper/Lower Highs')
+                     color='C0', alpha=st.ma, label='Upper/Lower Highs')
     ax1.fill_between(index, mxm[minc], mnm[minc],
-                     color='blue', alpha=st.ma, label='Upper/Lower Lows')
+                     color='C1', alpha=st.ma, label='Upper/Lower Lows')
     ax0.fill_between(index, umaxt, lmaxt,
-                     color='red', alpha=st.sa, label='68% Range Highs')
+                     color='C0', alpha=st.sa, label='68% Range Highs')
     ax1.fill_between(index, umint, lmint,
-                     color='blue', alpha=st.sa, label='68% Range Lows')
-    ax0.plot(af[maxc], 'r-', lw=2, alpha=st.ta, label='Average Highs')
-    ax1.plot(af[minc], 'b-', lw=2, alpha=st.ta, label='Average Lows')
+                     color='C1', alpha=st.sa, label='68% Range Lows')
+    ax0.plot(af[maxc], 'C0-', lw=2, alpha=st.ta, label='Average Highs')
+    ax1.plot(af[minc], 'C1-', lw=2, alpha=st.ta, label='Average Lows')
     if combine:
-        ax0.plot(af[avgc], 'k-', lw=st.tlw, alpha=st.ta, label='Average Daily')
+        ax0.plot(af[avgc], 'C2-', lw=st.tlw, alpha=st.ta, label='Average Daily')
 
     # Add current available month as distinct points
     ly = avm.index[-1]
@@ -1107,8 +1136,8 @@ def MonthRangePlot(nf, month=None, pad=False, combine=True, fignum=8):
     mint = [' Max\n Ngt', ' Avg\n Ngt', ' Min\n Ngt']
     maxt[0] = str(ly) + '\n' + maxt[0]
     for mk, mxv, mnv, mxt, mnt in zip(marks, maxvals, minvals, maxt, mint):
-        ax0.plot(ly, mxv, color='red', marker=mk)
-        ax1.plot(ly, mnv, color='blue', marker=mk)
+        ax0.plot(ly, mxv, color='C0', marker=mk)
+        ax1.plot(ly, mnv, color='C1', marker=mk)
         ax0.text(ly, mxv, mxt, ha='left', va='center', size='small')
         ax1.text(ly, mnv, mnt, ha='left', va='center', size='small')
 
