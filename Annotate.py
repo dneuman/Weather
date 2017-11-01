@@ -81,11 +81,18 @@ def Baseline(range):
     range : list
         list containing first and last date of baseline range
         (e.g. [1890, 1920]). Must be in data units, not index values.
+
+    Note
+    ----
+    Must be used after all data is plotted, since the scale may change if an
+    additional line is plotted, moving the other lines away from the baseline
+    annotation.
     """
     ax = _gfa()
     if type(range) != list:
         print('Input to Baseline must be a list, eg [1850, 1920]')
         return
+
     bl = _Data2Axes((range[0], 0), ax)
     tr = _Data2Axes((range[1], 0), ax)
     btop = bl[1] - .05
@@ -172,6 +179,7 @@ def AddRate(*args, label='{:.2}°C/decade', mult=10):
     p = np.poly1d(c)                   # create polynomial
     yy = p(xx)                         # calculate y values of line
     plt.plot(xx, yy, 'k-', linewidth=2, alpha=0.75)
-    lx, ly = _Data2Axes((xx[1], yy[1]), ax)
-    plt.text(lx, ly-.01, rate, size='larger',
-             ha='left', va='top', transform=ax.transAxes)
+
+    ax.annotate(rate, xy=(xx[1], yy[1]), xycoords='data',
+                xytext=(0, -3), textcoords='offset points',
+                size='larger', ha='left', va='top')

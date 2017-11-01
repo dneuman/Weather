@@ -378,5 +378,5 @@ def SSA(s, m, rtnRC=1, pad='linear'):
         rc[:,j] = z.dot(rho[:, j]) / m
     if pad:
         rc = rc[m:n-m]
-    return pd.DataFrame(rc, index=s.index, name='Singular Spectrum Analysis')
+    return pd.DataFrame(rc, index=s.index)
 

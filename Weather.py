@@ -61,7 +61,7 @@ class Settings():
     source = "Data: Environment Canada"
     tlw = 4  # trend linewidth
     dlw = 1  # data linewidth
-    ta = 0.8   # trend alpha
+    ta = 0.99   # trend alpha
     da = 0.3   # data alpha
     sa = 0.15  # std dev alpha
     ma = 0.1   # max/min alpha
@@ -618,8 +618,12 @@ def TempPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
         c = st.colors[col]
         a = sm.Smooth(s, size, trend, pad, follow)
         ax.plot(s, 'o-', alpha=st.da, lw=st.dlw, color=c)
+        if col == cols[-1]:
+            tlabel = trend.upper() + ' Trend'
+        else:
+            tlabel = ''
         ax.plot(a, '-', alpha=st.ta, lw=st.tlw,
-                 label='Trend', color=c)
+                 label=tlabel, color=c)
         # fit line to recent data
         at.AddRate(s.loc[1970:])
         # TODO Rate text in wrong place when 2 or more lines
@@ -740,7 +744,6 @@ def ErrorPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
     plt.ylabel('Temperature Change from Baseline (°C)')
     at.Baseline(yf.baseline)
     at.Attribute(source=st.source)
-    # TODO Figure out weird Attribute placement
 
     plt.show()
 
@@ -1185,7 +1188,6 @@ def MonthRangePlot(nf, month=None, combine=True,
                  ha='center', va='bottom', size='smaller')
 
     at.Attribute(source=st.source)
-    # TODO: Figure out why Attribute puts text in such an odd place.
 
     at.AddYAxis(ax0)
     if not combine: at.AddYAxis(ax1)
