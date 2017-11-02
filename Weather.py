@@ -786,22 +786,16 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
              ['Snow', 16, 'cH', 1, float.__gt__, -100.0],
              ]
     props = [props[i] for i in use]
-    # Create list of daily records. Use 2016 as reference year (leap year)
-    r = pd.Series(index=pd.date_range(dt.date(2016, 1, 1),
-                                          dt.date(2016, 12, 31)))
-    # Create list of counts of records for each year
-    cols = []
-    [cols.append(p[0]) for p in props]
-    counts = pd.DataFrame(columns=cols,
-                          index=list(range(df.index[0].year,
-                                           df.index[-1].year+1)))
-    counts.iloc[:, :] = 0
+    columns = [p[0] for p in props]
     fig = plt.figure(fignum)
     fig.clear()
     ax = fig.add_subplot(111)
     plt.subplots_adjust(bottom=0.1)
 
     # Set up axis formatting
+    # Format codes are at:
+    # https://docs.python.org/3/library
+    #             /datetime.html#strftime-and-strptime-behavior
     monthly = mdates.MonthLocator()
     monthFmt = mdates.DateFormatter('%b')
     blankFmt = mdates.DateFormatter(' ')
@@ -815,22 +809,28 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     ax.set_xticks(np.arange(start, 2021, 5))
     ax.set_xlim((start-2, 2022))
 
-    for p in props:
+    # will look up records by month/day (1-indexed)
+    r = np.zeros((13, 32), dtype=float)
+    yrmin = df.index[0].year
+    yrmax = df.index[-1].year
+    counts = np.zeros((len(use), (yrmax-yrmin+1)), dtype=int)
+    for pi, p in enumerate(props):
         print(p[0])
+        # contains running list of records. x is the year, y is the date.
         x = []
         y = []
         # choose appropriate comparison function. The 'Min' records are '<'
         compare = p[4]
-        r[:] = p[5]
+        r[:,:] = p[5]
         for i in range(len(df.index)):
             s = df.iat[i, p[1]]
-            date = df.index[i]
-            ndate = ToNow(date)
-            if compare(s, r[ndate]):
-                r[ndate] = s
+            month = df.iat[i, 1]
+            day = df.iat[i, 2]
+            if compare(s, r[month,day]):
+                r[month,day] = s
                 x.append(df.index[i].year)
-                y.append(ndate)
-                counts[p[0]].loc[date.year] += 1
+                y.append(ToNow(df.index[i]))
+                counts[pi, df.iat[i,0]-yrmin] += 1
         # drop any dates before 1960
         for i in range(len(x)):
             if x[i] >= start:
@@ -841,7 +841,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
                  p[2],
                  label=p[0], zorder=p[3])
 
-    # Plot records data
+    # annotate axes
     ax.legend(loc='upper left', ncol=6,
               bbox_to_anchor=(0, -0.04), handlelength=0.8)
     plt.title('Daily Weather Records for ' + df.city)
@@ -864,17 +864,17 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     if not stack: return
 
     # Plot number of records per year in a stacked bar chart
-    x = list(counts.index)
-    y = list(range(len(counts.columns)))
-    for i, v in enumerate(counts.columns):
-        y[i] = list(counts[v])
-    fig = plt.figure(fignum+1, figsize=(17, 9))
+    x = list(range(yrmin, yrmax+1))
+    fig = plt.figure(fignum+1)
     fig.clear()
-    plt.axis([start, 2020, 0, 50])
-    plt.stackplot(x, y)
+    ax = fig.add_subplot(111)
+    plt.axis([start, 2020, 0, 45])
+    ax.set_xticks(np.arange(start, 2021, 5))
+    ax.set_yticks(np.arange(0, 46, 5))
 
+    plt.stackplot(x, counts, alpha=0.7)
 
-    plt.legend(counts.columns)
+    plt.legend(columns)
     plt.title('Records per Year for ' + df.city)
 
     plt.show()
