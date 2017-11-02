@@ -37,7 +37,7 @@ Requirements
 """
 
 import matplotlib.pyplot as plt
-import matplotlib.ticker as tk
+import matplotlib.dates as mdates
 import pandas as pd
 import numpy as np
 import datetime as dt
@@ -626,7 +626,6 @@ def TempPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
                  label=tlabel, color=c)
         # fit line to recent data
         at.AddRate(s.loc[1970:])
-        # TODO Rate text in wrong place when 2 or more lines
 
     # Label chart
     plt.ylabel('Temperature Change From Baseline (°C)')
@@ -748,7 +747,7 @@ def ErrorPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
     plt.show()
 
 
-def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
+def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     """Plot all records in daily data.
 
     Parameters
@@ -765,6 +764,8 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
         3. Min Night
         4. Rain
         5. Snow
+    stack : boolean default False
+        Show the record counts for each year in a separate stackplot.
     fignum : (opt) default 4
         Figure to use. Useful to keep multiple plots separated.
     """
@@ -773,6 +774,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
         """Take a timestamp and return same day in 2016"""
         return pd.Timestamp(dt.date(2016, t.month, t.day))
 
+    start = 1960  # start date for x-axis
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
     props = [
@@ -794,8 +796,25 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
                           index=list(range(df.index[0].year,
                                            df.index[-1].year+1)))
     counts.iloc[:, :] = 0
-    fig = plt.figure(fignum, figsize=(17, 9))
+    fig = plt.figure(fignum)
     fig.clear()
+    ax = fig.add_subplot(111)
+    plt.subplots_adjust(bottom=0.1)
+
+    # Set up axis formatting
+    monthly = mdates.MonthLocator()
+    monthFmt = mdates.DateFormatter('%b')
+    blankFmt = mdates.DateFormatter(' ')
+    bimonthly = mdates.DayLocator(15)
+    ax.set_ylim((dt.date(2015,12,16), dt.date(2017,1,14)))
+    ax.yaxis.set_major_locator(monthly)
+    ax.yaxis.set_minor_locator(bimonthly)
+    ax.yaxis.set_minor_formatter(monthFmt)
+    ax.yaxis.set_major_formatter(blankFmt)
+    # ticks must be set before the first plot, or they will be locked in
+    ax.set_xticks(np.arange(start, 2021, 5))
+    ax.set_xlim((start-2, 2022))
+
     for p in props:
         print(p[0])
         x = []
@@ -812,17 +831,37 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
                 x.append(df.index[i].year)
                 y.append(ndate)
                 counts[p[0]].loc[date.year] += 1
-        plt.plot(x, y,
+        # drop any dates before 1960
+        for i in range(len(x)):
+            if x[i] >= start:
+                break
+        x = x[i:]
+        y = y[i:]
+        ax.plot(x, y,
                  p[2],
                  label=p[0], zorder=p[3])
+
     # Plot records data
+    ax.legend(loc='upper left', ncol=6,
+              bbox_to_anchor=(0, -0.04), handlelength=0.8)
     plt.title('Daily Weather Records for ' + df.city)
-    plt.legend(numpoints=1,
-               bbox_to_anchor=(1.07, 1), loc='upper right', borderaxespad=0.)
-    plt.axis([1940, 2020, '20160101', '20161231'])
-    # TODO Fix y-axis format
-    # TODO add second y-axis
+
+    # Add second y-axis
+    ax2 = ax.twinx()
+    ax2.set_yticks(ax.get_yticks())
+    ax2.set_ylim(ax.get_ylim())
+    ax2.grid(False)
+    ax2.yaxis.set_major_locator(monthly)
+    ax2.yaxis.set_minor_locator(bimonthly)
+    ax2.yaxis.set_minor_formatter(monthFmt)
+    ax2.yaxis.set_major_formatter(blankFmt)
+    ax.tick_params(axis='y', which='minor', color=(0,0,0,0))
+    ax2.tick_params(axis='y', which='minor', color=(0,0,0,0))
+
     plt.show()
+
+
+    if not stack: return
 
     # Plot number of records per year in a stacked bar chart
     x = list(counts.index)
@@ -831,7 +870,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], fignum=4):
         y[i] = list(counts[v])
     fig = plt.figure(fignum+1, figsize=(17, 9))
     fig.clear()
-    plt.axis([1940, 2020, 0, 50])
+    plt.axis([start, 2020, 0, 50])
     plt.stackplot(x, y)
 
 
