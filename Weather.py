@@ -900,12 +900,30 @@ def PrecipPlot(df, fignum=5):
 
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
+    start = 1940
     props = [
              ['Rain', 14, 'g.', 2],
              ['Snow', 16, 'cH', 1],
              ]
-    fig = plt.figure(fignum, figsize=(17, 9))
+    fig = plt.figure(fignum)
     fig.clear()
+    ax = fig.add_subplot(111)
+    # Set up axis formatting
+    # Format codes are at:
+    # https://docs.python.org/3/library
+    #             /datetime.html#strftime-and-strptime-behavior
+    monthly = mdates.MonthLocator()
+    monthFmt = mdates.DateFormatter('%b')
+    blankFmt = mdates.DateFormatter(' ')
+    bimonthly = mdates.DayLocator(15)
+    ax.set_ylim((dt.date(2015,12,16), dt.date(2017,1,14)))
+    ax.yaxis.set_major_locator(monthly)
+    ax.yaxis.set_minor_locator(bimonthly)
+    ax.yaxis.set_minor_formatter(monthFmt)
+    ax.yaxis.set_major_formatter(blankFmt)
+    # ticks must be set before the first plot, or they will be locked in
+    ax.set_xticks(np.arange(start, 2021, 5))
+    ax.set_xlim((start-2, 2022))
     for p in props:
         print(p[0])
         x = []
@@ -917,17 +935,127 @@ def PrecipPlot(df, fignum=5):
             if s > 0:  # was there precipitation?
                 x.append(df.index[i].year)
                 y.append(ndate)
-        plt.plot(x, y,
+        # drop any dates before 1960
+        for i in range(len(x)):
+            if x[i] >= start:
+                break
+        x = x[i:]
+        y = y[i:]
+        ax.plot(x, y,
                  p[2],
                  label=p[0], zorder=p[3])
     # Plot records data
     plt.title('Days with Precipitation in '+ df.city)
-    plt.legend(numpoints=1,
-               bbox_to_anchor=(1.07, 1), loc='upper right', borderaxespad=0.)
-    plt.axis([1940, 2020, '20160101', '20161231'])
+    ax.legend(loc='upper left', ncol=6,
+              bbox_to_anchor=(0, -0.04), handlelength=0.8)
+    # Add second y-axis
+    ax2 = ax.twinx()
+    ax2.set_yticks(ax.get_yticks())
+    ax2.set_ylim(ax.get_ylim())
+    ax2.grid(False)
+    ax2.yaxis.set_major_locator(monthly)
+    ax2.yaxis.set_minor_locator(bimonthly)
+    ax2.yaxis.set_minor_formatter(monthFmt)
+    ax2.yaxis.set_major_formatter(blankFmt)
+    ax.tick_params(axis='y', which='minor', color=(0,0,0,0))
+    ax2.tick_params(axis='y', which='minor', color=(0,0,0,0))
     plt.show()
     # Plot number of records per year in a stacked bar chart
     print('Done')
+    return
+
+def DryPlot(df, fignum=5):
+    """Go through all data and plot every day where it was dry.
+
+    Parameters
+    ----------
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    fignum : int opt default 5
+        Figure to use. Useful to keep multiple plots separated.
+    """
+
+    def ToNow(t):
+        """Take a timestamp and return same day in 2016"""
+        return pd.Timestamp(dt.date(2016, t.month, t.day))
+
+    start = 1940
+    fig = plt.figure(fignum)
+    fig.clear()
+    ax = fig.add_subplot(111)
+    # Set up axis formatting
+    # Format codes are at:
+    # https://docs.python.org/3/library
+    #             /datetime.html#strftime-and-strptime-behavior
+    monthly = mdates.MonthLocator()
+    monthFmt = mdates.DateFormatter('%b')
+    blankFmt = mdates.DateFormatter(' ')
+    bimonthly = mdates.DayLocator(15)
+    ax.set_ylim((dt.date(2015,12,16), dt.date(2017,1,14)))
+    ax.yaxis.set_major_locator(monthly)
+    ax.yaxis.set_minor_locator(bimonthly)
+    ax.yaxis.set_minor_formatter(monthFmt)
+    ax.yaxis.set_major_formatter(blankFmt)
+    # ticks must be set before the first plot, or they will be locked in
+    ax.set_xticks(np.arange(start, 2021, 5))
+    ax.set_xlim((start-2, 2022))
+
+    xh = []
+    xw = []
+    xc = []
+    xf = []
+    yh = []
+    yw = []
+    yc = []
+    yf = []
+    for i in range(len(df.index)):
+        s = df.iat[i, 18]    # get pecipitation
+        if s == 0:  # was there precipitation?
+            t = df.iat[i, 4]     # get temperature
+            date = df.index[i]
+            ndate = ToNow(date)
+            if t>=30:
+                xh.append(df.index[i].year)
+                yh.append(ndate)
+            elif 25<=t<30:
+                xw.append(df.index[i].year)
+                yw.append(ndate)
+            elif 0<t<25:
+                xc.append(df.index[i].year)
+                yc.append(ndate)
+            else:
+                xf.append(df.index[i].year)
+                yf.append(ndate)
+    # drop any dates before start
+    for x, y, c, l, z in zip([xh, xw, xc, xf], [yh, yw, yc, yf],
+                             ['k', 'red', 'orange', 'c'],
+                             ['Hot (>29)', 'Warm (25-29)', 'Cool', 'Freezing'],
+                             [4, 3, 2, 1]):
+        for i in range(len(x)):
+            if x[i] >= start:
+                break
+        x = x[i:]
+        y = y[i:]
+        ax.plot(x, y, 'o', color=c, markersize=1.5, label=l, zorder=z)
+        print(l+' '+str(len(x)))
+
+    # Annotate chart
+    plt.title('Days with No Precipitation in '+ df.city)
+    ax.legend(loc='upper left', ncol=6, markerscale=3,
+              bbox_to_anchor=(0, -0.04), handlelength=0.8)
+    # Add second y-axis
+    ax2 = ax.twinx()
+    ax2.set_yticks(ax.get_yticks())
+    ax2.set_ylim(ax.get_ylim())
+    ax2.grid(False)
+    ax2.yaxis.set_major_locator(monthly)
+    ax2.yaxis.set_minor_locator(bimonthly)
+    ax2.yaxis.set_minor_formatter(monthFmt)
+    ax2.yaxis.set_major_formatter(blankFmt)
+    ax.tick_params(axis='y', which='minor', color=(0,0,0,0))
+    ax2.tick_params(axis='y', which='minor', color=(0,0,0,0))
+    plt.show()
     return
 
 
