@@ -9,6 +9,7 @@ Created on Sat Oct 21 13:59:11 2017
 """
 
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import datetime as dt
 import pandas as pd
 import numpy as np
@@ -26,14 +27,41 @@ def _gfa():
     fig = plt.gcf()
     return fig.get_axes()[0]
 
-def AddYAxis(ax, pad=None):
+def MonthFmt(ax):
+    """Set the y-axis to months with names between tick marks
+
+    Parameters
+    ----------
+    ax : Matplotlib axes
+        axes to be formatted.
+    """
+    # Set up axis formatting
+    # Format codes are at:
+    # https://docs.python.org/3/library
+    #             /datetime.html#strftime-and-strptime-behavior
+    monthly = mdates.MonthLocator()
+    monthFmt = mdates.DateFormatter('%b')
+    blankFmt = mdates.DateFormatter(' ')
+    bimonthly = mdates.DayLocator(15)
+
+    ax.yaxis.set_major_locator(monthly)
+    ax.yaxis.set_minor_locator(bimonthly)
+    ax.yaxis.set_minor_formatter(monthFmt)
+    ax.yaxis.set_major_formatter(blankFmt)
+
+    ax.tick_params(axis='y', which='minor', color=(0,0,0,0))
+
+def AddYAxis(ax, month=False, pad=None):
     """Adds y-axis that's a mirror of the y-axis on left.
 
     Parameters
     ----------
     ax : Axes
         Axes to be mirrored
-    pad : int opt Default None
+    month : boolean default False
+        Flag indicating that the axis has month labels, which must be handled
+        differently.
+    pad : int Default None
         Adjustment for location of labels. How far from the axis the right
         side of the label is since it is right-justified. If not supplied,
         a pretty good estimate is used.
@@ -44,33 +72,46 @@ def AddYAxis(ax, pad=None):
         point if the estimated value is not right.
     Notes
     -----
-    Use this function just before the final fig.show() command. Anywhere else
-    causes problems with plotting to the wrong axes.
+    1. Use this function just before the final fig.show() command. Anywhere
+    else causes problems with plotting to the wrong axes.
+
+    2. Padding tested on a Retina MacPowerbook. It might be off if another
+    system is used.
     """
     ax2 = ax.twinx()
     ax2.grid(False) # is sitting on top of lines
     ax2.set_yticks(ax.get_yticks())
     ax2.set_ylim(ax.get_ylim())
-    ts = ax2.get_yticklabels()
-    [t.set_ha('right') for t in ts]
-    yax = ax2.get_yaxis()
-    if not pad:
-        ax.figure.canvas.draw()
-        rend = ax.figure.canvas.get_renderer()
-        bboxes = yax.get_ticklabel_extents(rend)
-        w = bboxes[1].width
-        # Value (2.8) tested with Mac Retina Display. Might not work on other
-        # systems.
-        if plt.get_backend().startswith('Mac'):
-            pad = w/2.8 - 2
-        else:
-            pad = w/1.4 - 2
-    yax.set_tick_params(pad=pad)
-    # make ticks invisible (not labels)
-    ax.tick_params(axis='y', color=(0,0,0,0))
-    ax2.tick_params(axis='y', color=(0,0,0,0))
+    yax = ax.get_yaxis()
+    yax2 = ax2.get_yaxis()
+    if month:
+        yax2.set_major_locator(yax.get_major_locator())
+        yax2.set_minor_locator(yax.get_minor_locator())
+        yax2.set_major_formatter(yax.get_major_formatter())
+        yax2.set_minor_formatter(yax.get_minor_formatter())
+    else:
+        ts = ax2.get_yticklabels()
+        [t.set_ha('right') for t in ts]
+        if not pad:
+            ax.figure.canvas.draw()
+            rend = ax.figure.canvas.get_renderer()
+            bboxes = yax.get_ticklabel_extents(rend)
+            w = max(b.width for b in bboxes)
+            # Value (2.8) tested with Mac Retina Display.
+            # Might not work on other systems.
+            if plt.get_backend().startswith('Mac'):
+                pad = w/2.8 - 2
+            else:
+                pad = w/1.4 - 2
+        yax2.set_tick_params(pad=pad)
     #fixes axis overlap in 'ggplot' style
     ax2.spines['right'].set_alpha(0)
+    if month:
+        ax2.tick_params(axis='y', which='minor', color=(0,0,0,0))
+    else:
+        ax.tick_params(axis='y', color=(0,0,0,0))
+        ax2.tick_params(axis='y', color=(0,0,0,0))
+
     return pad
 
 def Baseline(range):
@@ -168,7 +209,7 @@ def AddRate(*args, label='{:.2}°C/decade', mult=10):
         x = args[0]
         y = args[1]
     else:
-        print('Unexpeced input. Use:\n  AddRate(x,y) or\n  AddRate(s)\n'
+        print('Unexpected input. Use:\n  AddRate(x,y) or\n  AddRate(s)\n'
               'where x and y are lists-like, and s is a pandas series.')
     ax = _gfa()
     c = np.polyfit(x, y, 1)            # fit a line to data
@@ -183,3 +224,4 @@ def AddRate(*args, label='{:.2}°C/decade', mult=10):
     ax.annotate(rate, xy=(xx[1], yy[1]), xycoords='data',
                 xytext=(0, -3), textcoords='offset points',
                 size='larger', ha='left', va='top')
+
