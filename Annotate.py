@@ -148,38 +148,52 @@ def Baseline(range):
     plt.text(bx[1], by[1]-.01, 'Baseline', size='larger',
              va='top', transform=ax.transAxes)
 
-def Attribute(ha='right', va='bottom', source='', date=''):
+def Attribute(ha='right', va='bottom', author='Chart: @dan613',
+              source='', date=''):
     """Add an attribute to current plot.
 
     Parameters
     ----------
     ha : str ['right' | 'left'] opt default 'right'
         Horizontal alignment of attribute
-    va : str ['top' | 'bottom'] opt default 'bottom'
-        Vertical alignment of attribute
+    va : str ['top' | 'bottom' | 'below'] opt default 'bottom'
+        Vertical alignment of attribute. 'below' puts it below the x-axis.
+    author : str default 'Chart: @dan613'
+        Chart author name
     source : str opt
         Where data came from (should start with 'Data:'). Multi-line strings
         can be used (lines separated by newline), with space indents.
     date : str opt
         Date/year chart was made or data created. Usually just year.
+
+    Note
+    ----
+    If using the va='below' option, it is up to the calling routine to make
+    sure there is enough room under the x-axis.
     """
     ax = _gfa()
+    size = 'medium'
     loc = {'top': .99,
            'bottom': .01,
            'left': .01,
            'right': .99}
+    if va == 'below':
+        va = 'top'
+        loc['top'] = -.05
+        size = 'small'
     text = ''
     if source != '':
         text = source + '\n'
     if date == '':
         d = dt.datetime.now()
         date = d.strftime('%d %b %Y')
-    text = text + 'Chart: @dan613   ' + date
+    text = text + author + '   ' + date
     plt.text(loc[ha], loc[va],
             text,
             ha=ha,
             va=va,
             multialignment='left',
+            fontsize = size,
             transform=ax.transAxes)
 
 def AddRate(*args, label='{:.2}°C/decade', mult=10):
@@ -220,8 +234,14 @@ def AddRate(*args, label='{:.2}°C/decade', mult=10):
     p = np.poly1d(c)                   # create polynomial
     yy = p(xx)                         # calculate y values of line
     plt.plot(xx, yy, 'k-', linewidth=2, alpha=0.75)
+    if c[0] >=0:
+        xyt = (0, -3)
+        va = 'top'
+    else:
+        xyt = (0, 3)
+        va = 'bottom'
 
     ax.annotate(rate, xy=(xx[1], yy[1]), xycoords='data',
-                xytext=(0, -3), textcoords='offset points',
-                size='larger', ha='left', va='top')
+                xytext=xyt, textcoords='offset points',
+                size='larger', ha='left', va=va)
 
