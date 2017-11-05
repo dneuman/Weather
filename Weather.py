@@ -37,7 +37,6 @@ Requirements
 """
 
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import pandas as pd
 import numpy as np
 import datetime as dt
@@ -45,7 +44,7 @@ import Smoothing as sm
 import Annotate as at
 import pathlib
 
-
+#%precision 2
 pd.options.display.float_format = '{:.1f}'.format  # change print format
 plt.style.use('weather')
 # http://matplotlib.org/users/style_sheets.html
@@ -69,7 +68,10 @@ class Settings():
     colors = {'doc':'Color from cycle to use per column',
               'Max Temp (°C)':'C0', 4:'C0',
               'Min Temp (°C)':'C1', 6:'C1',
-              'Mean Temp (°C)':'C2', 8:'C2'} # colors to use per column
+              'Mean Temp (°C)':'C2', 8:'C2',
+              'Total Rain (mm)':'C3', 14:'C3',
+              'Total Snow (cm)':'C4', 16:'C4',
+              'Total Precip (mm)':'C3', 18:'C3'} # colors to use per column
     monthS = {'doc':'Return short month name',
               0:'Yr ', 1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr',
               5:'May', 6:'Jun', 7:'Jul', 8:'Aug',
@@ -579,8 +581,8 @@ def GridPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-def TempPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
-             fignum=1):
+def TempPlot(df, cols=[8], func=np.mean, size=21, trend='wma', pad='linear',
+             follow=1, fignum=1):
     """Plot indicated columns of data, including the moving average.
 
     Parameters
@@ -590,6 +592,9 @@ def TempPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
         .city attribute added.
     cols : list of ints opt default [8] (Mean Temp)
         Columns to plot.
+    func : function default np.mean
+        Function used to aggregate the annual data. Use np.sum
+        for precipitation.
     size : int opt default 21
         Size of the moving average window. Larger values give smoother
         results.
@@ -610,7 +615,7 @@ def TempPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
     messy with multiple columns.
     """
 
-    yf = df.GetYears(cols=cols)
+    yf = df.GetYears(cols=cols, func=func)
     yf = yf - yf.GetBaseAvg()
     cols = yf.columns
 
@@ -630,7 +635,9 @@ def TempPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
         ax.plot(a, '-', alpha=st.ta, lw=st.tlw,
                  label=tlabel, color=c)
         # fit line to recent data
-        at.AddRate(s.loc[1970:])
+        # Use smoothed line for rate since different methods may reduce
+        # influence of outliers.
+        at.AddRate(a.loc[1970:])
 
     # Label chart
     plt.ylabel('Temperature Change From Baseline (°C)')
@@ -867,7 +874,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     print('Done')
     return
 
-def TypePlot(df, start=1940, use = [0,1,2,3,4,5,6], fignum=5):
+def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6], fignum=5):
     """Go through all data and plot what the weather was like for each day.
 
     Parameters
@@ -897,7 +904,7 @@ def TypePlot(df, start=1940, use = [0,1,2,3,4,5,6], fignum=5):
         ax.set_xticks(np.arange(start, 2021, 10))
     ax.set_xlim((start-2, 2022))
 
-    #     Name, Lower Lim, Upper Lim, Column, Color
+    #     Name, Lower Limit, Upper Limit, Column, Color
     props = [['Snow', 0, 0,  16, 'w'],
              ['Rain', 0, 0, 14, 'g'],
              ['Frigid (< -15°C)', -100, -15, 4, 'b'],
@@ -936,10 +943,90 @@ def TypePlot(df, start=1940, use = [0,1,2,3,4,5,6], fignum=5):
 
     # Annotate chart
     plt.title('Day Type in '+ df.city)
-    ax.legend(loc='upper left', ncol=7, markerscale=3,
+    ax.legend(loc='upper left', ncol=4, markerscale=3,
               bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
+    at.Attribute(va='below', source=st.source)
+
     # Add second y-axis
     at.AddYAxis(ax, month=True)
+    plt.show()
+    return
+
+def DayCountPlot(df, use = [0,1,2,3,4,5,6], fignum=5):
+    """Go through all data and plot what the weather was like for each day.
+
+    Parameters
+    ----------
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    use : list of int default [0,1,2,3,4,5,6]
+        Data to plot.
+    fignum : int opt default 5
+        Figure to use. Useful to keep multiple plots separated.
+    """
+
+    fig = plt.figure(fignum)
+    fig.clear()
+    ax = fig.add_subplot(111)
+
+    #     Name, Lower Limit, Upper Limit, Column, Color
+    props = [['Snow', '', 0, 0,  16, 'w'],
+             ['Rain', '', 0, 0, 14, 'g'],
+             ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
+             ['Cold', '(-15 — 0)', -15, 0, 4, 'c'],
+             ['Cool', '(0—25)', 0, 25, 4, 'orange'],
+             ['Warm', '(25—30)', 25, 30, 4, 'red'],
+             ['Hot', '(≥30)', 30, 100, 4, 'k']]
+    props = [props[i] for i in use]
+    cmap = {}
+    tmap = {}
+    [cmap.update({p[0]:p[5]}) for p in props]
+    [tmap.update({p[0]:' '.join([p[0], p[1]])}) for p in props]
+
+
+    #sd = pd.Timestamp(dt.date(start,1,1))
+    #si = df.index.get_loc(sd)
+
+    # make a separate frame with just dry days, since it will be used often
+    cn = df.columns[4] # dry column name (Max Temp)
+    precip = df.columns[[0,14,16,18]]
+    dryf = df.loc[lambda d: d[precip[3]]==0, ['Year', cn]]
+    wetf = df.loc[lambda d: d[precip[3]]>0, precip]
+
+    x = list(range(df.index[0].year, df.index[-1].year+1))
+    data = pd.DataFrame(index=x, dtype=int)
+    colors = []
+    labels = []
+    for name, r, ll, ul, col, c in props:
+        cn = df.columns[col]
+        if col in [14, 16]:
+            sf = wetf.loc[lambda d: d[cn]>0, ['Year', cn]]
+        else:
+            sf = dryf.loc[lambda d: ll<=d[cn], ['Year',cn]]
+            sf = sf.loc[lambda d: d[cn]<ul, ['Year',cn]]
+        gr = sf.groupby('Year').count()
+        data[name] = gr[cn]
+        data.loc[lambda d: np.isnan(d[name]), name] = 0
+        colors.append(c)
+        labels.append(' '.join([name,r]))
+
+    # Get plot order
+    sums = data.sum()
+    sums.sort_values(inplace=True, ascending=False)
+    plotOrd = list(sums.index)
+    for p in plotOrd:
+        ax.fill_between(data.index, data[p].values,
+                        color=cmap[p], alpha=0.8, label=tmap[p])
+
+    # Annotate chart
+    plt.title('Day Type in '+ df.city)
+    ax.legend(loc='upper left', ncol=4, markerscale=3,
+              bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
+    at.Attribute(va='below', source=st.source)
+
+    # Add second y-axis
+    at.AddYAxis(ax)
     plt.show()
     return
 
