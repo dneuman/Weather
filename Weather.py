@@ -953,7 +953,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6], fignum=5):
     return
 
 def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
-                 style='fill',
+                 style='fill', trend=None,
                  fignum=5):
     """Go through all data and plot what the weather was like for each day.
 
@@ -965,7 +965,9 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
     use : list of int default [0,1,2,3,4,5,6,7]
         Data to plot.
     style : ['fill' | 'stack' | 'line'] default 'fill'
-
+        Style of plot to make.
+    trend : [None | 'wma' | 'ssa' | 'lowess'] default None
+        What kind of trend line to use
     fignum : int opt default 5
         Figure to use. Useful to keep multiple plots separated.
     """
@@ -1027,6 +1029,11 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
         colors.append(c)
         labels.append(' '.join([name,r]))
 
+    if trend:
+        tf = pd.DataFrame(index=data.index)
+        for t in data:
+            tf[t] = sm.Smooth(data[t], size=15, trend=trend)
+
     if sFill:
         # Get plot order
         sums = data.sum()
@@ -1034,14 +1041,28 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
         plotOrd = list(sums.index)
         for p in plotOrd:
             ax.fill_between(data.index, data[p].values,
-                            color=cmap[p], alpha=0.8, label=tmap[p])
+                            color=cmap[p], alpha=0.75, label=tmap[p])
+        if trend:
+            for p in plotOrd:
+                ax.plot(tf.index, tf[p].values,
+                        color=cmap[p], alpha=1.0, label='')
     elif sStack:
         ax.stackplot(data.index, data.values.T,
-                      colors=colors, labels=labels)
+                      colors=colors, alpha=0.6, labels=labels)
+        if trend:
+            sf = pd.DataFrame(index=tf.index)
+            sf['sum']=0
+            for p in tf:
+                sf['sum'] += tf[p]
+                ax.plot(sf['sum'].index, sf['sum'].values.T,
+                        color = cmap[p], label='')
     elif sLine:
         for p in data:
             ax.plot(data.index, data[p].values, '-',
                             color=cmap[p], alpha=0.8, label=tmap[p])
+            if trend:
+                ax.plot(tf.index, tf[p].values,
+                    color=cmap[p], alpha=1.0, label='')
     else:
         # do nothing by default since might not be wanted.
         pass
