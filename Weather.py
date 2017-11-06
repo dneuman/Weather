@@ -952,8 +952,8 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6], fignum=5):
     plt.show()
     return
 
-def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
-                 style='fill', trend=None,
+def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
+                 trend=None, trendonly=False, size=21,
                  fignum=5):
     """Go through all data and plot what the weather was like for each day.
 
@@ -968,6 +968,10 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
         Style of plot to make.
     trend : [None | 'wma' | 'ssa' | 'lowess'] default None
         What kind of trend line to use
+    trendonly : boolean default False
+        True if only the trend line is needed.
+    size : int default 21
+        Size of the smoothing window
     fignum : int opt default 5
         Figure to use. Useful to keep multiple plots separated.
     """
@@ -981,11 +985,11 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
     elif style == 'stack': sStack = True
     else: sFill = True
     #     Name, Lower Limit, Upper Limit, Column, Color
-    props = [['Snow', '', 0, 0,  16, 'w'],
+    props = [['Snow', '', 0, 0,  16, 'darkgrey'],
              ['Rain', '', 0, 0, 14, 'g'],
              ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
              ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
-             ['Cold', '(0–15)', 0, 15, 4, 'khaki'],
+             ['Cold', '(0–15)', 0, 15, 4, 'peru'],
              ['Cool', '(15–25)', 15, 25, 4, 'orange'],
              ['Warm', '(25–30)', 25, 30, 4, 'red'],
              ['Hot', '(≥30)', 30, 100, 4, 'k']]
@@ -1032,7 +1036,12 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
     if trend:
         tf = pd.DataFrame(index=data.index)
         for t in data:
-            tf[t] = sm.Smooth(data[t], size=15, trend=trend)
+            tf[t] = sm.Smooth(data[t], size=size, trend=trend)
+
+    if trendonly:
+        # Use the trend data instead of actual data
+        trend = None
+        data = tf
 
     if sFill:
         # Get plot order
@@ -1058,11 +1067,17 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7],
                         color = cmap[p], label='')
     elif sLine:
         for p in data:
-            ax.plot(data.index, data[p].values, '-',
-                            color=cmap[p], alpha=0.8, label=tmap[p])
-            if trend:
+            if not trend:
+                ax.plot(data.index, data[p].values, '-',
+                                color=cmap[p], alpha=0.8,
+                                label=tmap[p])
+            else:
+                ax.plot(data.index, data[p].values, '-',
+                                color=cmap[p], alpha=st.da, lw=st.dlw,
+                                label=tmap[p])
                 ax.plot(tf.index, tf[p].values,
-                    color=cmap[p], alpha=1.0, label='')
+                    color=cmap[p], alpha=st.ta, lw = st.tlw,
+                    label='')
     else:
         # do nothing by default since might not be wanted.
         pass
