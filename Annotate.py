@@ -10,6 +10,7 @@ Created on Sat Oct 21 13:59:11 2017
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.ticker as mtick
 import datetime as dt
 import pandas as pd
 import numpy as np
@@ -51,7 +52,7 @@ def MonthFmt(ax):
 
     ax.tick_params(axis='y', which='minor', color=(0,0,0,0))
 
-def AddYAxis(ax, month=False, pad=None):
+def AddYAxis(ax, month=False, pad=None, percent=None):
     """Adds y-axis that's a mirror of the y-axis on left.
 
     Parameters
@@ -65,6 +66,10 @@ def AddYAxis(ax, month=False, pad=None):
         Adjustment for location of labels. How far from the axis the right
         side of the label is since it is right-justified. If not supplied,
         a pretty good estimate is used.
+    percent : int, float, or None default None
+        Use if a percentate is desired on the right y-axis labels.
+        ``percent=365`` to give percent of a year.
+
     Returns
     -------
     pad : float
@@ -89,6 +94,9 @@ def AddYAxis(ax, month=False, pad=None):
         yax2.set_minor_locator(yax.get_minor_locator())
         yax2.set_major_formatter(yax.get_major_formatter())
         yax2.set_minor_formatter(yax.get_minor_formatter())
+    elif percent:
+        ts = ax2.get_yticks()
+        ax2.set_yticklabels(['{0:.0%}'.format(t/percent) for t in ts])
     else:
         ts = ax2.get_yticklabels()
         [t.set_ha('right') for t in ts]
@@ -112,7 +120,7 @@ def AddYAxis(ax, month=False, pad=None):
         ax.tick_params(axis='y', color=(0,0,0,0))
         ax2.tick_params(axis='y', color=(0,0,0,0))
 
-    return pad
+    return ax2, pad
 
 def Baseline(range):
     """Add baseline to current plot.
