@@ -1167,40 +1167,6 @@ def SnowPlot(df, fignum=6):
     print('Done')
     return
 
-def HotDaysPlot(df, fignum=7):
-    """
-    Plots a bar chart of days each year over 25 and 30 °C.
-
-    Parameters
-    ----------
-    df : WxDF
-        object containing daily data for a location. Can use a
-        pandas.DataFrame if df.city comtains the name of the city.
-    fignum : int opt default 7
-        Figure to use. Useful to keep multiple plots separated.
-    """
-    width = 0.35
-    days = df.iloc[:, [0,4]]
-    label = days.columns[1]
-    hot = days[(days[label]>=30)]
-    warm = days[(days[label]>=25)]
-    hotc = hot.pivot_table(values=[label],
-                           index=['Year'],
-                           aggfunc=np.count_nonzero)
-    warmc = warm.pivot_table(values=[label],
-                             index=['Year'],
-                             aggfunc=np.count_nonzero)
-    fig = plt.figure(fignum)
-    fig.clear()
-    ind = np.arange(len(hotc.index))
-    # TODO fix x locations +- ind
-    p1 = plt.bar(ind, hotc.iloc[:,0], width, color='red')
-    # TODO fix prob with rows being diff length due to years not in list
-    p2 = plt.bar(ind, warmc.iloc[:,0], width, color='orange')
-    plt.legend((p2[0], p1[0]), ('Days > 25°C', 'Days > 30°C'))
-    plt.title("Warm and Hot Days for "+df.city)
-    plt.show()
-
 def MonthRangePlot(nf, month=None, combine=True,
                    trend='wma', pad='linear', follow=1, fignum=8):
     """Get expected high and low temperatures for the supplied month.
