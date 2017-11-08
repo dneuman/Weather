@@ -874,7 +874,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     print('Done')
     return
 
-def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6], fignum=5):
+def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     """Go through all data and plot what the weather was like for each day.
 
     Parameters
@@ -905,44 +905,46 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6], fignum=5):
     ax.set_xlim((start-2, 2022))
 
     #     Name, Lower Limit, Upper Limit, Column, Color
-    props = [['Snow', 0, 0,  16, 'w'],
-             ['Rain', 0, 0, 14, 'g'],
-             ['Frigid (< -15°C)', -100, -15, 4, 'b'],
-             ['Cold (-15 — 0)', -15, 0, 4, 'c'],
-             ['Cool (0—25)', 0, 25, 4, 'orange'],
-             ['Warm (25—30)', 25, 30, 4, 'red'],
-             ['Hot (≥30)', 30, 100, 4, 'k']]
+    props = [['Snow', '', 0, 0,  16, 'w'],
+             ['Rain', '', 0, 0, 14, 'g'],
+             ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
+             ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
+             ['Cold', '(0–15)', 0, 15, 4, 'peru'],
+             ['Cool', '(15–25)', 15, 25, 4, 'orange'],
+             ['Warm', '(25–30)', 25, 30, 4, 'red'],
+             ['Hot', '(≥30)', 30, 100, 4, 'k']]
     props = [props[i] for i in use]
 
-    for name, ll, ul, col, c in props:
-        x = []
-        y = []
-        precip = False
-        if col in [14, 16]: precip = True
-        for i in range(len(df.index)):
-            add = False
-            d = df.iat[i, col]
-            p = df.iat[i, 18]
-            dry = np.isnan(p) or p==0
-            if precip and d > 0:
-                add = True
-            elif dry and (ll <= d < ul):
-                add = True
-            if add:
-                date = df.index[i]
-                x.append(date.year)
-                y.append(_ToNow(date))
-        for i in range(len(x)):
-            if x[i] >= start:
-                break
-        x = x[i:]
-        y = y[i:]
-        ax.plot(x, y, '_', color=c, alpha=1.0, markersize=4, label=name)
+    # Make a new dataframe starting at the desired location, and make
+    # a column with the correct date, but year as 2016, for plotting
+    dcols = ['year','Month','Day']
+    d = dt.datetime(start,1,1)
+    ix = df.index.get_loc(d)
+    tf = df.iloc[ix:,:].copy()
+    tf['year']=2016  # make a new column with just 2016 for datetime
+    tf['Now'] = tf[dcols].apply(lambda s: dt.datetime(*s), axis=1)
 
-        print(name+' '+str(len(x)))
+    # make a separate frames for wet and dry days
+    cn = tf.columns[4] # dry column name (Max Temp)
+    precip = tf.columns[[0,14,16,18, -1]]
+    dryf = tf.loc[lambda d: d[precip[3]]==0, ['Year', 'Now', cn]]
+    wetf = tf.loc[lambda d: d[precip[3]]>0, precip]
+
+    # Just select the rows that meet the criteria, then plot that row's
+    # Year vs Now (Now being the date moved to 2016).
+    for name, r, ll, ul, col, c in props:
+        cn = tf.columns[col]
+        if col in [14, 16]:
+            sf = wetf.loc[lambda d: d[cn]>0, ['Year', 'Now']]
+        else:
+            sf = dryf.loc[lambda d: ll<=d[cn], ['Year', 'Now', cn]]
+            sf = sf.loc[lambda d: d[cn]<ul, ['Year', 'Now']]
+        ax.plot(sf.Year, sf.Now, '_', color=c, alpha=1.0, markersize=4,
+                label=' '.join([name,r]))
 
     # Annotate chart
-    plt.title('Day Type in '+ df.city)
+    plt.title('Precipitation (Rain, Snow) or \n'
+              'Dry Days (by Temperature Range) in '+ df.city)
     ax.legend(loc='upper left', ncol=4, markerscale=3,
               bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
     at.Attribute(va='below', source=st.source)
@@ -1083,15 +1085,17 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
         pass
 
     # Annotate chart
-    plt.title('Day Type in '+ df.city)
+    plt.title('Precipitation (Rain, Snow) or \n'
+              'Dry Days (by Temperature Range) in '+ df.city)
+    ax.set_ylabel('Number of Days per Year')
     ax.legend(loc='upper left', ncol=4, markerscale=3,
               bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
     at.Attribute(va='below', source=st.source)
 
-    # Add second y-axis
-    at.AddYAxis(ax)
-    plt.show()
-    return
+    # Add second y-axis with percentages on right
+    ax2, pad = at.AddYAxis(ax, percent=365)
+    ax2.set_ylabel('Percent of Year')
+    fig.show()
 
 
 def SnowPlot(df, fignum=6):
