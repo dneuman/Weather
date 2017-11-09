@@ -926,19 +926,21 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
 
     # make a separate frames for wet and dry days
     cn = tf.columns[4] # dry column name (Max Temp)
-    precip = tf.columns[[0,14,16,18, -1]]
-    dryf = tf.loc[lambda d: d[precip[3]]==0, ['Year', 'Now', cn]]
-    wetf = tf.loc[lambda d: d[precip[3]]>0, precip]
+    mcol = tf.columns[[0,4,14,16,18, -1]]  # main columns used
+    precip = tf.columns[18]
+    tf.loc[np.isnan(tf[precip]), precip] = 0  # set rows without data to dry
+    dryf = tf.loc[tf[precip]==0, mcol]
+    wetf = tf.loc[tf[precip]>0, mcol]
 
     # Just select the rows that meet the criteria, then plot that row's
     # Year vs Now (Now being the date moved to 2016).
     for name, r, ll, ul, col, c in props:
         cn = tf.columns[col]
         if col in [14, 16]:
-            sf = wetf.loc[lambda d: d[cn]>0, ['Year', 'Now']]
+            sf = wetf.loc[wetf[cn]>0]
         else:
-            sf = dryf.loc[lambda d: ll<=d[cn], ['Year', 'Now', cn]]
-            sf = sf.loc[lambda d: d[cn]<ul, ['Year', 'Now']]
+            sf = dryf.loc[dryf[cn]>=ll]
+            sf = sf.loc[sf[cn]<ul]
         ax.plot(sf.Year, sf.Now, '_', color=c, alpha=1.0, markersize=4,
                 label=' '.join([name,r]))
 
@@ -1015,8 +1017,8 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
         # stack total closer to 365.
         rain = df.columns[14]
         snow = df.columns[16]
-        wetf.loc[lambda d: d[rain]>=d[snow], snow] = 0
-        wetf.loc[lambda d: d[rain]< d[snow], rain] = 0
+        wetf.loc[wetf[rain]>=wetf[snow], snow] = 0
+        wetf.loc[wetf[rain]< wetf[snow], rain] = 0
 
     x = list(range(df.index[0].year, df.index[-1].year+1))
     data = pd.DataFrame(index=x, dtype=int)
@@ -1025,13 +1027,13 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
     for name, r, ll, ul, col, c in props:
         cn = df.columns[col]
         if col in [14, 16]:
-            sf = wetf.loc[lambda d: d[cn]>0, ['Year', cn]]
+            sf = wetf.loc[wetf[cn]>0, ['Year', cn]]
         else:
-            sf = dryf.loc[lambda d: ll<=d[cn], ['Year',cn]]
-            sf = sf.loc[lambda d: d[cn]<ul, ['Year',cn]]
+            sf = dryf.loc[dryf[cn]>=ll, ['Year',cn]]
+            sf = sf.loc[dryf[cn]<ul]
         gr = sf.groupby('Year').count()
         data[name] = gr[cn]
-        data.loc[lambda d: np.isnan(d[name]), name] = 0
+        data.loc[np.isnan(data[name]), name] = 0
         colors.append(c)
         labels.append(' '.join([name,r]))
 
@@ -1197,6 +1199,8 @@ def MonthRangePlot(nf, month=None, combine=True,
     Uses moving average to calculate the mean temperatures, and the standard
     deviation from this.
     """
+# TODO Rethink how this is done. Maybe go back to using regular std dev.
+
     short = 5  # length of short weighting window
     long = 19  # length of long weighting window
     vlong = 61 # length of daily weighting window
@@ -1292,7 +1296,7 @@ def MonthRangePlot(nf, month=None, combine=True,
         ax0 = plt.subplot(1, 1, 1)
         ax1 = ax0
         plt.title(title)
-
+# TODO Figure out why this stopped working.
     ax0.fill_between(index, mxm[maxc], mnm[maxc],
                      color='C0', alpha=st.ma, label='Upper/Lower Highs')
     ax1.fill_between(index, mxm[minc], mnm[minc],
