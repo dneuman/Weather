@@ -530,6 +530,82 @@ def _ToNow(t):
     """Take a timestamp and return same day in 2016"""
     return pd.Timestamp(dt.date(2016, t.month, t.day))
 
+def _AddEOY(df, col, offset=0, ax=None, legend=True):
+    """Make an estimate of the mean temperature for the last year in data.
+
+    Parameters
+    ----------
+    df : WxDF or pd.DataFrame
+        Data to be analyzed. Expects columns to be in WxDF format.
+    col : int
+        Column to use for calculation
+    offset : int default 0
+        Offset to use, eg for when plotting against a baseline. This is
+        subtracted from the actual value.
+    ax : matplotlib.Axis or None, default None
+        Axis to plot on. Will not plot if None. If provided, will plot a box
+        plot showing the mean, 2-sigma (95%), min and max values.
+    legend : bool
+        Flag to include labels in legend.
+
+    Returns
+    -------
+    mean : int
+        Estimated final mean temperature for final year
+    sigma : float
+        Standard deviation from all previous years for the rest of the year.
+    max : float
+        Maximum seen deviation from temperature to present day of year.
+    min : float
+        Minimum seen deviation from temperature to present day of year.
+
+    Note
+    ----
+    Return values have the offset subtracted from them.
+    """
+    df['dy'] = df.index.dayofyear
+    tcols = df.columns[[0,4,6,8]]
+    tcol = df.columns[col]
+    ld = df.GetLastDay()
+    dy = df.index[ld].dayofyear
+    fy = df.index[-1].dayofyear # get days in full year
+
+    # For all previous years, get days up to and including last day,
+    # and days afterwards. Then get the sum for each year.
+    bf = df.loc[df.dy <= dy, tcols] # beginning
+    ef = df.loc[df.dy > dy, tcols]  # end
+    yf = bf.groupby('Year').mean()
+    yf['end'] = ef[['Year',tcol]].groupby('Year').mean()
+
+    # The difference between beginning of year average temperature should be
+    # correlated with the end of year temp, so calculate this for every year,
+    # then get the stats for the differences to determine how the end of the
+    # last year should end up.
+    yf['diff'] = yf['end'] - yf[tcol]
+    # Get results weighted by amount of year left
+    bw = dy/fy  # beginning weight
+    ew = (fy - dy)/fy  # end weight
+    yr = df.index[ld].year
+    yb = yf.loc[yr, tcol]  # beginning temp
+    yAvg = yb * bw + (yb + yf['diff'].mean()) * ew - offset
+    yMax = yb * bw + (yb + yf['diff'].max()) * ew - offset
+    yMin = yb * bw + (yb + yf['diff'].min()) * ew - offset
+    eStd = yf['diff'].std() + yf['diff'].mean()
+    yStd = (yb * bw + (yb + eStd) * ew) - yAvg + offset
+
+    if ax:
+        ys = str(yr)
+        ps = ms = es = ''
+        if legend:
+            ps = ys+' (est)'
+            ms = ys+' Min/Max'
+            es = ys+' 95% range'
+        ax.plot(yr, yAvg, 'ko', label=ps)
+        ax.plot([yr, yr], [yMax, yMin], 'k_-', label=ms)
+        ax.plot([yr, yr], [yAvg+yStd, yAvg-yStd], '-', color='orange',
+                alpha=0.3, label=es)
+
+    return yAvg, yStd, yMax, yMin
 
 def GridPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
