@@ -505,20 +505,10 @@ class WxDF(pd.DataFrame):
                             index=['Year'],
                             aggfunc=func)
 
-        # Now estimate current year based on rest of previous year
-        cyr = self.Year[-1]  # get current year
-        pyr = cyr-1          # previous year
-        dfc = self.loc[lambda df: df.Year == cyr]
-        c = dfc.count()  # days in current year
-
-        dfp = self.loc[lambda df: df.Year == pyr]
-        dfp = dfp.iloc[:c[labels[0]]] # make number of days same as current year
-        pl = dfp.pivot_table(values=list(labels),
-                            index=['Year'],
-                            aggfunc=func)
-        # adjust current year by last year's change from current day to year end
-        for i in range(len(labels)):
-            yf.iloc[-1, i] = (yf.iloc[-2, i] - pl.iloc[0, i]) + yf.iloc[-1, i]
+        # Drop last year if incomplete
+        date = df.index[df.GetLastDay()]
+        if date.dayofyear < 365:
+            yf.drop(date.year, inplace=True)
 
         yf = WxDF(self.id, yf[labels])
         yf.period = 'annual'
@@ -563,17 +553,22 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True):
     ----
     Return values have the offset subtracted from them.
     """
-    df['dy'] = df.index.dayofyear
-    tcols = df.columns[[0,4,6,8]]
-    tcol = df.columns[col]
-    ld = df.GetLastDay()
-    dy = df.index[ld].dayofyear
+    if type(col) == str:
+        tcol = col
+    else:
+        tcol = df.columns[col]
+    tcols = df.columns[[0,4,6,8,14,16,18]]
+    date = df.index[df.GetLastDay()]
+    yr = date.year
+    dy = date.dayofyear
     fy = df.index[-1].dayofyear # get days in full year
+    df = df.loc[:,tcols] # only use useful columns
+    df['dy'] = df.index.dayofyear
 
     # For all previous years, get days up to and including last day,
     # and days afterwards. Then get the sum for each year.
-    bf = df.loc[df.dy <= dy, tcols] # beginning
-    ef = df.loc[df.dy > dy, tcols]  # end
+    bf = df.loc[df.dy <= dy] # beginning
+    ef = df.loc[df.dy > dy]  # end
     yf = bf.groupby('Year').mean()
     yf['end'] = ef[['Year',tcol]].groupby('Year').mean()
 
@@ -584,14 +579,12 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True):
     yf['diff'] = yf['end'] - yf[tcol]
     # Get results weighted by amount of year left
     bw = dy/fy  # beginning weight
-    ew = (fy - dy)/fy  # end weight
-    yr = df.index[ld].year
+    ew = 1.0 - bw  # end weight
     yb = yf.loc[yr, tcol]  # beginning temp
     yAvg = yb * bw + (yb + yf['diff'].mean()) * ew - offset
     yMax = yb * bw + (yb + yf['diff'].max()) * ew - offset
     yMin = yb * bw + (yb + yf['diff'].min()) * ew - offset
-    eStd = yf['diff'].std() + yf['diff'].mean()
-    yStd = (yb * bw + (yb + eStd) * ew) - yAvg + offset
+    yStd = yf['diff'].std(ddof=0) * ew
 
     if ax:
         ys = str(yr)
@@ -601,9 +594,10 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True):
             ms = ys+' Min/Max'
             es = ys+' 95% range'
         ax.plot(yr, yAvg, 'ko', label=ps)
-        ax.plot([yr, yr], [yMax, yMin], 'k_-', label=ms)
-        ax.plot([yr, yr], [yAvg+yStd, yAvg-yStd], '-', color='orange',
-                alpha=0.3, label=es)
+        ax.plot([yr, yr], [yMax, yMin], 'k_-', lw=1., label=ms, ms=7,
+                alpha=0.8)
+        ax.plot([yr, yr], [yAvg+2*yStd, yAvg-2*yStd], '-', color='orange',
+                alpha=0.5, lw=7, label=es)
 
     return yAvg, yStd, yMax, yMin
 
@@ -692,7 +686,8 @@ def TempPlot(df, cols=[8], func=np.mean, size=21, trend='wma', pad='linear',
     """
 
     yf = df.GetYears(cols=cols, func=func)
-    yf = yf - yf.GetBaseAvg()
+    offset = yf.GetBaseAvg()
+    yf = yf - offset
     cols = yf.columns
 
     fig = plt.figure(fignum)
@@ -714,6 +709,7 @@ def TempPlot(df, cols=[8], func=np.mean, size=21, trend='wma', pad='linear',
         # Use smoothed line for rate since different methods may reduce
         # influence of outliers.
         at.AddRate(a.loc[1970:])
+        _AddEOY(df, col, offset[col], ax)
 
     # Label chart
     plt.ylabel('Temperature Change From Baseline (°C)')
