@@ -561,7 +561,8 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True):
     date = df.index[df.GetLastDay()]
     yr = date.year
     dy = date.dayofyear
-    fy = df.index[-1].dayofyear # get days in full year
+    # get days in full year
+    fy = pd.Timestamp(dt.date(yr, 12, 31)).dayofyear
     df = df.loc[:,tcols] # only use useful columns
     df['dy'] = df.index.dayofyear
 
