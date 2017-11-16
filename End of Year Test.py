@@ -64,12 +64,14 @@ for i in np.arange(2,13):
     data.append(yf['est'].values)
     p.append(i-1)
 
+# Make Violin Plot and customize how it looks
 parts = ax.violinplot(data, p)
 c = 'C0'  # color to use
 for p in parts['bodies']:
     p.set_facecolor(c)
 for p in ['cbars','cmaxes','cmins']:
     parts[p].set_color(c)
+
 ax.set_title('Probability Distribution of Year Average ({})\n'
              'Based on Beginning of Year Temperature for Ottawa'.format(yr))
 ax.set_ylabel('Year Mean Temperature (°C)')
