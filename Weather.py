@@ -520,7 +520,7 @@ def _ToNow(t):
     """Take a timestamp and return same day in 2016"""
     return pd.Timestamp(dt.date(2016, t.month, t.day))
 
-def _AddEOY(df, col, offset=0, ax=None, legend=True):
+def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True):
     """Make an estimate of the mean temperature for the last year in data.
 
     Parameters
@@ -535,12 +535,14 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True):
     ax : matplotlib.Axis or None, default None
         Axis to plot on. Will not plot if None. If provided, will plot a box
         plot showing the mean, 2-sigma (95%), min and max values.
-    legend : bool
+    legend : bool default True
         Flag to include labels in legend.
+    onlymean : bool default True
+        Only add mean to graph
 
     Returns
     -------
-    mean : int
+    mean : float
         Estimated final mean temperature for final year
     sigma : float
         Standard deviation from all previous years for the rest of the year.
@@ -595,10 +597,11 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True):
             ms = ys+' Min/Max'
             es = ys+' 95% range'
         ax.plot(yr, yAvg, 'ko', label=ps)
-        ax.plot([yr, yr], [yMax, yMin], 'k_-', lw=1., label=ms, ms=7,
-                alpha=0.8)
-        ax.plot([yr, yr], [yAvg+2*yStd, yAvg-2*yStd], '-', color='orange',
-                alpha=0.5, lw=7, label=es)
+        if not onlymean:
+            ax.plot([yr, yr], [yMax, yMin], 'k_-', lw=1., label=ms, ms=7,
+                    alpha=0.8)
+            ax.plot([yr, yr], [yAvg+2*yStd, yAvg-2*yStd], '-', color='orange',
+                    alpha=0.5, lw=7, label=es)
 
     return yAvg, yStd, yMax, yMin
 
@@ -652,7 +655,8 @@ def GridPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-def TempPlot(df, cols=[8], func=np.mean, size=21, trend='wma', pad='linear',
+def TempPlot(df, rawcols=[8], trendcols=[8], ratecols=[8],
+             func=np.mean, size=21, trend='wma', pad='linear',
              follow=1, fignum=1):
     """Plot indicated columns of data, including the moving average.
 
@@ -661,12 +665,16 @@ def TempPlot(df, cols=[8], func=np.mean, size=21, trend='wma', pad='linear',
     df : WxDF
         DataFrame containing daily data. Can be a pandas.DataFrame with a
         .city attribute added.
-    cols : list of ints opt default [8] (Mean Temp)
-        Columns to plot.
+    rawcols : list of ints default [8] (Mean Temp)
+        Columns to plot as raw data.
+    trendcols : list of ints default [8] (Mean Temp)
+        Columns to plot as trend lines.
+    ratecols : list of ints default [8] (Mean Temp)
+        Columns to add rate lines to.
     func : function default np.mean
         Function used to aggregate the annual data. Use np.sum
         for precipitation.
-    size : int opt default 21
+    size : int default 21
         Size of the moving average window. Larger values give smoother
         results.
     trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
@@ -677,7 +685,7 @@ def TempPlot(df, cols=[8], func=np.mean, size=21, trend='wma', pad='linear',
         Determines how closely to follow the data. Only used for
         'lowess' (determines the polynomial to use) and 'ssa' (determines
         how many reconstructed principles to use).
-    fignum : in opt default 1
+    fignum : int default 1
         Figure number to use. Useful if multiple plots are required.
 
     Note
@@ -696,7 +704,9 @@ def TempPlot(df, cols=[8], func=np.mean, size=21, trend='wma', pad='linear',
     ax = fig.add_subplot(111)
 
     for col in cols:
+        r = _AddEOY(df, col, offset[col], ax)
         s = yf[col]
+        s[s.index[-1]+1] = r[0]  # add final estimate
         c = st.colors[col]
         a = sm.Smooth(s, size, trend, pad, follow)
         ax.plot(s, 'o-', alpha=st.da, lw=st.dlw, color=c)
@@ -710,7 +720,6 @@ def TempPlot(df, cols=[8], func=np.mean, size=21, trend='wma', pad='linear',
         # Use smoothed line for rate since different methods may reduce
         # influence of outliers.
         at.AddRate(a.loc[1970:])
-        _AddEOY(df, col, offset[col], ax)
 
     # Label chart
     plt.ylabel('Temperature Change From Baseline (°C)')
