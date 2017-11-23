@@ -655,9 +655,9 @@ def GridPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-def TempPlot(df, rawcols=[8], trendcols=[8], ratecols=[8],
+def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
              func=np.mean, size=21, trend='wma', pad='linear',
-             follow=1, fignum=1):
+             follow=1, change=True, est=True, fignum=1):
     """Plot indicated columns of data, including the moving average.
 
     Parameters
@@ -685,6 +685,10 @@ def TempPlot(df, rawcols=[8], trendcols=[8], ratecols=[8],
         Determines how closely to follow the data. Only used for
         'lowess' (determines the polynomial to use) and 'ssa' (determines
         how many reconstructed principles to use).
+    change : bool default True
+        Flag determines if change from baseline desired.
+    est : bool default True
+        Include current incomplete year as an estimate.
     fignum : int default 1
         Figure number to use. Useful if multiple plots are required.
 
@@ -694,32 +698,41 @@ def TempPlot(df, rawcols=[8], trendcols=[8], ratecols=[8],
     messy with multiple columns.
     """
 
-    yf = df.GetYears(cols=cols, func=func)
-    offset = yf.GetBaseAvg()
-    yf = yf - offset
+    # get a list of all desired columns
+    allcols = list(set().union(set(rawcols), set(trendcols), set(ratecols)))
+
+    yf = df.GetYears(cols=allcols, func=func)
+    if change:
+        offset = yf.GetBaseAvg()  # offset is used later
+        yf = yf - offset
     cols = yf.columns
+    rawlbls = df.columns[rawcols]
 
     fig = plt.figure(fignum)
     fig.clear()  # May have been used before
     ax = fig.add_subplot(111)
 
     for col in cols:
-        r = _AddEOY(df, col, offset[col], ax)
         s = yf[col]
-        s[s.index[-1]+1] = r[0]  # add final estimate
+        if est:
+            r = _AddEOY(df, col, offset[col])
+            s[s.index[-1]+1] = r[0]  # add final estimate
         c = st.colors[col]
         a = sm.Smooth(s, size, trend, pad, follow)
-        ax.plot(s, 'o-', alpha=st.da, lw=st.dlw, color=c)
-        if col == cols[-1]:
-            tlabel = trend.upper() + ' Trend'
-        else:
-            tlabel = ''
-        ax.plot(a, '-', alpha=st.ta, lw=st.tlw,
-                 label=tlabel, color=c)
-        # fit line to recent data
-        # Use smoothed line for rate since different methods may reduce
-        # influence of outliers.
-        at.AddRate(a.loc[1970:])
+        if col in df.columns[rawcols]:
+            ax.plot(s, 'o-', alpha=st.da, lw=st.dlw, color=c)
+        if col in df.columns[trendcols]:
+            if col == cols[-1]:
+                tlabel = trend.upper() + ' Trend'
+            else:
+                tlabel = ''
+            ax.plot(a, '-', alpha=st.ta, lw=st.tlw,
+                     label=tlabel, color=c)
+        if col in df.columns[ratecols]:
+            # fit line to recent data
+            # Use smoothed line for rate since different methods may reduce
+            # influence of outliers.
+            at.AddRate(a.loc[1970:])
 
     # Label chart
     plt.ylabel('Temperature Change From Baseline (°C)')
@@ -735,56 +748,6 @@ def TempPlot(df, rawcols=[8], trendcols=[8], ratecols=[8],
     fig.show()
     return
 
-
-def TrendPlot(df, cols=[4, 6, 8], size=21, change=True, rate=False,
-              trend='wma', pad='linear', follow=1, fignum=2):
-    """Simple smoothed plots with optional baseline.
-
-    Parameters
-    ----------
-    df : WxDF
-        DataFrame containing daily data. Can be a pandas.DataFrame with a
-        .city attribute added.
-    cols : list of ints opt default [4, 6, 8] (Max, Min, Avg Temp)
-        Columns to plot.
-    size : int opt default 21
-        Size of the moving average window. Larger values give smoother
-        results.
-    change : boolean opt default True
-        Show change from the baseline
-    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
-        Which smoothing algorithm to use.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        What kind of padding to use on the trend line
-    follow : int default 1
-        Determines how closely to follow the data. Only used for
-        'lowess' (determines the polynomial to use) and 'ssa' (determines
-        how many reconstructed principles to use).
-    fignum : in opt default 2
-        Figure number to use. Useful if multiple plots are required.
-    """
-    yf = df.GetYears(cols=cols)
-    if change:
-        yf = yf - yf.GetBaseAvg()
-    ma = [sm.Smooth(yf[col], size, trend, pad, follow) for col in yf.columns]
-    fig = plt.figure(fignum)
-    fig.clear()
-    ax = fig.add_subplot(111)
-    for i, y in enumerate(ma):
-        ax.plot(y, '-', alpha=st.ta, linewidth=st.tlw, label=yf.columns[i])
-        if rate: at.AddRate(y.loc[1970:])
-
-    # Annotate
-    plt.ylabel('Temperature Change from Baseline (°C)')
-    plt.xlabel('Year')
-    plt.title("Change in " + df.city + "'s Annual Temperature")
-    plt.legend(loc='upper left')
-    at.Baseline(df.baseline)
-    at.Attribute(source=st.source)
-
-    at.AddYAxis(ax)
-    fig.show()
-    return
 
 def ErrorPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
               fignum=3):
