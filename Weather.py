@@ -698,6 +698,9 @@ def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
     messy with multiple columns.
     """
 
+    import matplotlib.patches as mpatches
+    import matplotlib.lines as mlines
+
     # get a list of all desired columns
     allcols = list(set().union(set(rawcols), set(trendcols), set(ratecols)))
 
@@ -706,28 +709,38 @@ def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
         offset = yf.GetBaseAvg()  # offset is used later
         yf = yf - offset
     cols = yf.columns
-    rawlbls = df.columns[rawcols]
 
     fig = plt.figure(fignum)
     fig.clear()  # May have been used before
     ax = fig.add_subplot(111)
 
+    # Create legend entries manually
+    handles = []
+    if len(rawcols) > 0:
+        line = mlines.Line2D([], [], color='k', marker='o',
+                             alpha=st.da, lw=st.dlw, label='Raw Data')
+        handles.append(line)
+    if len(trendcols) > 0:
+        line = mlines.Line2D([], [], color='k', alpha=st.ta, lw=st.tlw,
+                             label=trend.upper()+' Trend')
+        handles.append(line)
+
     for col in cols:
         s = yf[col]
         if est:
             r = _AddEOY(df, col, offset[col])
-            s[s.index[-1]+1] = r[0]  # add final estimate
+            s[s.index[-1]+1] = r[0]  # add current year estimate
         c = st.colors[col]
+
+        # add a legend entry for this color
+        line = mpatches.Patch(color=c, label=col)
+        handles.append(line)
+
         a = sm.Smooth(s, size, trend, pad, follow)
         if col in df.columns[rawcols]:
             ax.plot(s, 'o-', alpha=st.da, lw=st.dlw, color=c)
         if col in df.columns[trendcols]:
-            if col == cols[-1]:
-                tlabel = trend.upper() + ' Trend'
-            else:
-                tlabel = ''
-            ax.plot(a, '-', alpha=st.ta, lw=st.tlw,
-                     label=tlabel, color=c)
+            ax.plot(a, '-', alpha=st.ta, lw=st.tlw, color=c)
         if col in df.columns[ratecols]:
             # fit line to recent data
             # Use smoothed line for rate since different methods may reduce
@@ -742,7 +755,7 @@ def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
     # Annotate chart
     at.Baseline(df.baseline)
     at.Attribute(source=st.source)
-    plt.legend(loc=2)
+    plt.legend(handles=handles, loc=2)
 
     at.AddYAxis(ax)
     fig.show()
