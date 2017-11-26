@@ -43,6 +43,9 @@ import datetime as dt
 import Smoothing as sm
 import Annotate as at
 import pathlib
+import matplotlib.patches as mpatches
+import matplotlib.lines as mlines
+
 
 #%precision 2
 pd.options.display.float_format = '{:.1f}'.format  # change print format
@@ -698,16 +701,18 @@ def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
     messy with multiple columns.
     """
 
-    import matplotlib.patches as mpatches
-    import matplotlib.lines as mlines
 
     # get a list of all desired columns
     allcols = list(set().union(set(rawcols), set(trendcols), set(ratecols)))
 
     yf = df.GetYears(cols=allcols, func=func)
+    offset = yf.GetBaseAvg()  # offset is used later
     if change:
-        offset = yf.GetBaseAvg()  # offset is used later
         yf = yf - offset
+        ylabel = 'Temperature Change From Baseline (°C)'
+    else:
+        offset[:] = 0
+        ylabel = 'Temperature (°C)'
     cols = yf.columns
 
     fig = plt.figure(fignum)
@@ -748,12 +753,13 @@ def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
             at.AddRate(a.loc[1970:])
 
     # Label chart
-    plt.ylabel('Temperature Change From Baseline (°C)')
+    plt.ylabel(ylabel)
     #plt.xlabel('Year')
     plt.title("Change in " + df.city + "'s Annual Temperature")
 
     # Annotate chart
-    at.Baseline(df.baseline)
+    if change:
+        at.Baseline(df.baseline)
     at.Attribute(source=st.source)
     plt.legend(handles=handles, loc=2)
 
