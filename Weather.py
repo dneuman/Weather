@@ -72,8 +72,8 @@ class Settings():
               'Max Temp (°C)':'C0', 4:'C0',
               'Min Temp (°C)':'C1', 6:'C1',
               'Mean Temp (°C)':'C2', 8:'C2',
-              'Total Rain (mm)':'C3', 14:'C3',
-              'Total Snow (cm)':'C4', 16:'C4',
+              'Total Rain (mm)':'C2', 14:'C2',
+              'Total Snow (cm)':'C1', 16:'C1',
               'Total Precip (mm)':'C3', 18:'C3'} # colors to use per column
     monthS = {'doc':'Return short month name',
               0:'Yr ', 1:'Jan', 2:'Feb', 3:'Mar', 4:'Apr',
@@ -523,7 +523,8 @@ def _ToNow(t):
     """Take a timestamp and return same day in 2016"""
     return pd.Timestamp(dt.date(2016, t.month, t.day))
 
-def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True):
+def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True,
+            func=np.mean):
     """Make an estimate of the mean temperature for the last year in data.
 
     Parameters
@@ -542,6 +543,9 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True):
         Flag to include labels in legend.
     onlymean : bool default True
         Only add mean to graph
+    func : function default np.mean
+        function to use for aggregating annual data. Use np.mean for
+        temperatures, and np.sum for precipitation.
 
     Returns
     -------
@@ -575,8 +579,8 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True):
     # and days afterwards. Then get the sum for each year.
     bf = df.loc[df.dy <= dy] # beginning
     ef = df.loc[df.dy > dy]  # end
-    yf = bf.groupby('Year').mean()
-    yf['end'] = ef[['Year',tcol]].groupby('Year').mean()
+    yf = bf.groupby('Year').aggregate(func)
+    yf['end'] = ef[['Year',tcol]].groupby('Year').aggregate(func)
 
     # The difference between beginning of year average temperature should be
     # correlated with the end of year temp, so calculate this for every year,
@@ -658,8 +662,8 @@ def GridPlot(df, cols=2, title='', fignum=20):
             plt.legend(loc='upper left')
     plt.show()
 
-def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
-             func=np.mean, size=21, trend='wma', pad='linear',
+def Plot(df, rawcols=None, trendcols=None, ratecols=None,
+             func=None, size=21, trend='wma', pad='linear',
              follow=1, change=True, est=True, fignum=1):
     """Plot indicated columns of data, including the moving average.
 
@@ -695,24 +699,52 @@ def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
     fignum : int default 1
         Figure number to use. Useful if multiple plots are required.
 
-    Note
-    ----
-    Works best with just one column since all raw data is shown and gets
-    messy with multiple columns.
+    Notes
+    -----
+    If only rawcols are provided, trend and rate lines will be added. Use
+    empty lists if these aren't desired.
+
+    It is possible to use both temperature and precipitation columns, but
+    this will generally be not useful, and the labels will be incorrect.
     """
 
 
-    # get a list of all desired columns
+    # get a list of all desired columns (check for None)
+    allcols = set()
+    for s in [rawcols, trendcols, ratecols]:
+        if s: allcols = allcols.union(set(s))
+    allcols = list(allcols)
+
+    # set up defaults. If first supplied columns is temperature, make
+    # defaults temperature, otherwise precipitation.
+    if len(allcols)==0 or (allcols[0] in [4,6,8]):
+        unitstr = ' (°C)'
+        typestr = 'Temperature'
+        ratestr = '{:.2f}°C/decade'
+        if not func: func = np.mean
+        if not rawcols: rawcols = [8]
+        if not trendcols: trendcols = rawcols
+        if not ratecols: ratecols = trendcols
+    else:
+        unitstr = ' (mm/cm)'
+        typestr = 'Precipitation'
+        ratestr = '{:.1f}/decade'
+        if not func: func = np.sum
+        if not rawcols: rawcols = [18]  # total precipitation
+        if not trendcols: trendcols = rawcols
+        if not ratecols: ratecols = trendcols
     allcols = list(set().union(set(rawcols), set(trendcols), set(ratecols)))
 
     yf = df.GetYears(cols=allcols, func=func)
     offset = yf.GetBaseAvg()  # offset is used later
     if change:
         yf = yf - offset
-        ylabel = 'Temperature Change From Baseline (°C)'
+        ychstr = ' Change From Baseline'
+        chstr = 'Change in '
     else:
         offset[:] = 0
-        ylabel = 'Temperature (°C)'
+        ychstr = ''
+        chstr = ''
     cols = yf.columns
 
     fig = plt.figure(fignum)
@@ -733,7 +765,7 @@ def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
     for col in cols:
         s = yf[col]
         if est:
-            r = _AddEOY(df, col, offset[col])
+            r = _AddEOY(df, col, offset[col], func=func)
             s[s.index[-1]+1] = r[0]  # add current year estimate
         c = st.colors[col]
 
@@ -750,12 +782,11 @@ def Plot(df, rawcols=[8], trendcols=[8], ratecols=[8],
             # fit line to recent data
             # Use smoothed line for rate since different methods may reduce
             # influence of outliers.
-            at.AddRate(a.loc[1970:])
+            at.AddRate(a.loc[1970:], label=ratestr)
 
     # Label chart
-    plt.ylabel(ylabel)
-    #plt.xlabel('Year')
-    plt.title("Change in " + df.city + "'s Annual Temperature")
+    plt.ylabel(typestr + ychstr + unitstr)
+    plt.title(chstr + df.city + "'s Annual " + typestr)
 
     # Annotate chart
     if change:
