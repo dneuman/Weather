@@ -798,62 +798,6 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
     fig.show()
     return
 
-
-def ErrorPlot(df, cols=[8], size=21, trend='wma', pad='linear', follow=1,
-              fignum=3):
-    """Show standard deviation of temperature from trend.
-
-    Parameters
-    ----------
-    df : WxDF
-        DataFrame containing daily data. Can be a pandas.DataFrame with a
-        .city attribute added.
-    cols : list of ints opt default [8] (Mean Temp)
-        Columns to plot.
-    size : int opt default 21
-        Size of the moving average window. Larger values give smoother
-        results.
-    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
-        Which smoothing algorithm to use.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        What kind of padding to use on the trend line
-    follow : int default 1
-        Determines how closely to follow the data. Only used for
-        'lowess' (determines the polynomial to use) and 'ssa' (determines
-        how many reconstructed principles to use).
-    fignum : in opt default 3
-        Figure number to use. Useful if multiple plots are required.
-    """
-    c = st.colors[cols[0]]
-    yf = df.GetYears(cols)
-    yf = yf - yf.GetBaseAvg()
-    col = yf.columns[0]
-    ma = sm.Smooth(yf[col], size, trend, pad, follow)
-    err = (ma - yf[col])**2
-    std = err.mean()**0.5
-    fig = plt.figure(fignum)
-    fig.clear()
-    ax = fig.add_subplot(111)
-    ax.plot(yf[col], 'o-', lw=st.dlw, alpha=st.da,
-            label=' '.join([df.city, col]), color=c)
-    #c = line[0].get_color()
-    ax.plot(ma, '-', alpha=st.ta, lw=st.tlw,
-            label='Trend', color=c)
-    ax.fill_between(ma.index, ma.values+std, ma.values-std,
-                     color=c, alpha=st.sa, label='68%')
-    ax.fill_between(ma.index, ma.values+2*std, ma.values-2*std,
-                     color=c, alpha=st.ma, label='95%')
-
-    # Annotate chart
-    plt.legend(loc='upper left')
-    plt.title("Change in " + df.city + "'s Annual Temperature")
-    plt.ylabel('Temperature Change from Baseline (°C)')
-    at.Baseline(yf.baseline)
-    at.Attribute(source=st.source)
-
-    plt.show()
-
-
 def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     """Plot all records in daily data.
 
@@ -1362,7 +1306,6 @@ def MonthRangePlot(nf, month=None, combine=True,
     lmaxt = af[maxc] - sf[maxc]
     umint = af[minc] + sf[minc]
     lmint = af[minc] - sf[minc]
-    index = af.index
 
     # Get unsmoothed values for last year
     if month != 0:
@@ -1392,13 +1335,13 @@ def MonthRangePlot(nf, month=None, combine=True,
         ax1 = ax0
         plt.title(title)
 # TODO Figure out why this stopped working.
-    ax0.fill_between(index, mxm[maxc], mnm[maxc],
+    ax0.fill_between(mxm.index, mxm[maxc], mnm[maxc],
                      color='C0', alpha=st.ma, label='Upper/Lower Highs')
-    ax1.fill_between(index, mxm[minc], mnm[minc],
+    ax1.fill_between(mxm.index, mxm[minc], mnm[minc],
                      color='C1', alpha=st.ma, label='Upper/Lower Lows')
-    ax0.fill_between(index, umaxt, lmaxt,
+    ax0.fill_between(umaxt.index, umaxt, lmaxt,
                      color='C0', alpha=st.sa, label='68% Range Highs')
-    ax1.fill_between(index, umint, lmint,
+    ax1.fill_between(umint.index, umint, lmint,
                      color='C1', alpha=st.sa, label='68% Range Lows')
     ax0.plot(af[maxc], 'C0-', lw=2, alpha=st.ta, label='Average Highs')
     ax1.plot(af[minc], 'C1-', lw=2, alpha=st.ta, label='Average Lows')
@@ -1437,7 +1380,7 @@ def MonthRangePlot(nf, month=None, combine=True,
             'Average Low', '68% Night Spread']
     va0 = ['top', 'bottom', 'bottom', 'top']
     va1 = ['top', 'bottom', 'top', 'bottom']
-    yrs = len(index)
+    yrs = len(avm.index)
     xx0 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
     xx1 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
     xx0 = [int(x) for x in xx0]
@@ -1447,13 +1390,13 @@ def MonthRangePlot(nf, month=None, combine=True,
     yy1 = [mid(mxm[minc]), mid(mnm[minc],.2),
            af[minc].iloc[xx1[2]], lmint.iloc[xx1[3]]]
     for t, v, x, y in zip(txt0, va0, xx0, yy0):
-        ax0.text(index[x], y, t, va=v,
+        ax0.text(avm.index[x], y, t, va=v,
                  ha='center', color='darkred', size='smaller')
     for t, v, x, y in zip(txt1, va1, xx1, yy1):
-        ax1.text(index[x], y, t, va=v,
+        ax1.text(avm.index[x], y, t, va=v,
                  ha='center', color='darkblue', size='smaller')
     if combine:
-        x = index[xx0[2]]
+        x = avm.index[xx0[2]]
         y = af[avgc].iloc[xx0[2]]
         ax0.text(x, y, 'Month Average',
                  ha='center', va='bottom', size='smaller')
