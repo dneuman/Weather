@@ -1208,18 +1208,17 @@ def SnowPlot(df, fignum=6):
     print('Done')
     return
 
-def MonthRangePlot(nf, month=None, combine=True,
+def MonthRangePlot(df, month=None, combine=True,
                    trend='wma', pad='linear', follow=1, fignum=8):
-    """Get expected high and low temperatures for the supplied month.
+    """Get expected high and low temperature ranges for the supplied month.
 
     Parameters
     ----------
-    nf : pandas.DataFrame
+    df : pandas.DataFrame
         daily data contained in a pandas DataFrame
-    month : int opt default None
-        Desired month. The default gives current month. ``month=0`` gives
-        plot for entire year.
-    combine : boolean opt default True
+    month : int default None
+        Desired month (1-12). The default gives current month.
+    combine : boolean default True
         Combine the maximum and minimum temperatures onto one plot. Otherwise
         use two separate plots (which is easier to read).
     trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
@@ -1230,7 +1229,7 @@ def MonthRangePlot(nf, month=None, combine=True,
         Determines how closely to follow the data. Only used for
         'lowess' (determines the polynomial to use) and 'ssa' (determines
         how many reconstructed principles to use).
-    fignum : int opt default 8
+    fignum : int default 8
         Figure number to use. Override if you want to see more than one plot
         at a time.
     Note
@@ -1238,84 +1237,49 @@ def MonthRangePlot(nf, month=None, combine=True,
     Uses moving average to calculate the mean temperatures, and the standard
     deviation from this.
     """
-# TODO Rethink how this is done. Maybe go back to using regular std dev.
 
-    short = 5  # length of short weighting window
+    # Approach:
+    # Get monthly means of mean, high, and low temperatures
+    # Calculate the standard deviation of temperatures
+    # Calculate the means ± standard deviations
+    # Get smoothed means and plot those
+    # Get min and max values of high and low temps and plot those.
+
     long = 19  # length of long weighting window
-    vlong = 61 # length of daily weighting window
 
-    if month is None:
+    if month is None or month==0 or month>12:
         month = dt.date.today().month
-    maxc = nf.columns[4] # max:0/4, min:1/6, avg:2/8
-    minc = nf.columns[6]
-    avgc = nf.columns[8]
-    # just use year, month, max, min, avg temps
-    df = nf[nf.columns[[0,1,4,6,8]]].copy()
+    maxc = df.columns[4] # max:0/4, min:1/6, avg:2/8
+    minc = df.columns[6]
+    avgc = df.columns[8]
+    umaxc = 'umaxc'
+    lmaxc = 'lmaxc'
+    uminc = 'uminc'
+    lminc = 'lminc'
+    uavgc = 'uavgc'
+    lavgc = 'lavgc'
+    # just use year, max, min, avg temps for desired month
+    df = df.loc[df.Month==month, ['Year', maxc, minc, avgc]]
     # Get rid of rows that have 'nan' values
     df.dropna(inplace=True)
 
-    # Calculate the standard deviation directly.
-    # Std dev = square root of mean error squared
-    # std dev = mean((val - mean(val))**2)**.5
-    #
-    # Using a moving average for the avg/mean for each day gives a better
-    # error value since the mean temperature is different at the beginning
-    # of a month than at the end.
-    af = df.copy()  # holds moving average amounts
-    ef = df[df.columns[[0,1,2,3]]].copy() # holds error amounts on max, min
-    sf = ef.copy()  # holds standard deviation amounts
-    mx = ef.copy()  # max, highest value above mean
-    mn = ef.copy()  # min, lowest value below mean
+    gb = df.groupby('Year')
+    sf = gb.std()
+    af = gb.mean()  # mean
+    mx = gb.max()  # max, highest value above mean
+    mn = gb.min()  # min, lowest value below mean
+
+    # calculate temperature ranges
+    for cr, c in zip([umaxc, uminc, uavgc], [maxc, minc, avgc]):
+        af[cr] = af[c] + sf[c]
+    for cr, c in zip([lmaxc, lminc, lavgc], [maxc, minc, avgc]):
+        af[cr] = af[c] - sf[c]
+
+    afs = af.copy() # smoothed version of temps and ranges
     # Get the daily average max, min, avg temps.
-    for c in [maxc, minc, avgc]:
-        af[c] = sm.Smooth(df[c], size=vlong, trend='wma', pad=None)
-    # Get the error and standard deviation
-    for c in [maxc, minc]:
-        ef[c] = df[c] - af[c]
-        sf[c] = sm.Smooth(ef[c]**2,
-                      size=vlong, trend='wma', pad=None)**0.5
-
-    if month != 0:
-        # reduce to just correct month for desired frames
-        sf = sf.loc[lambda df: df.Month == month]
-        ef = ef.loc[lambda df: df.Month == month]
-        af = af.loc[lambda df: df.Month == month]
-    # Get the average over year for max, min and avg temps
-    af = af.pivot_table(values=[maxc, minc, avgc],
-                           index=['Year'], aggfunc=np.mean)
-    sf = sf.pivot_table(values=[maxc, minc],
-                           index=['Year'], aggfunc=np.mean)
-    # this is max and min *error*, so must be added to mean to be
-    # useful.
-    mx = ef.pivot_table(values=[maxc, minc],
-                           index=['Year'], aggfunc=np.max)
-    mn = ef.pivot_table(values=[maxc, minc],
-                           index=['Year'], aggfunc=np.min)
-    for c in [maxc, minc]:
-        mx[c] = sm.Smooth(mx[c], size=short,
-                          trend=trend, pad=pad, follow=follow)
-        mn[c] = sm.Smooth(mn[c], size=short,
-                          trend=trend, pad=pad, follow=follow)
-        sf[c] = sm.Smooth(sf[c], size=long,
-                          trend=trend, pad=pad, follow=follow)
-    for c in [maxc, minc, avgc]:
-        af[c] = sm.Smooth(af[c], size=long,
-                          trend=trend, pad=pad, follow=follow)
-
-    umaxt = af[maxc] + sf[maxc]
-    lmaxt = af[maxc] - sf[maxc]
-    umint = af[minc] + sf[minc]
-    lmint = af[minc] - sf[minc]
-
-    # Get unsmoothed values for last year
-    if month != 0:
-        avm = nf.GetMonth([4, 6, 8], month, func=np.mean)
-        mxm = nf.GetMonth([4, 6, 8], month, func=np.max)
-        mnm = nf.GetMonth([4, 6, 8], month, func=np.min)
-    else:
-        avm = nf.GetYears([4, 6, 8], func=np.mean)
-        mxm = nf.GetYears([4, 6, 8], func=np.max)
-        mnm = nf.GetYears([4, 6, 8], func=np.min)
+    for c in af.columns:
+        afs[c] = sm.Smooth(af[c], size=long,
+                           trend=trend, pad=pad, follow=follow)
 
     # PLOTTING
     title = 'Temperature Range in '+df.city+' for '+ st.monthL[month]
@@ -1334,25 +1298,24 @@ def MonthRangePlot(nf, month=None, combine=True,
         ax0 = plt.subplot(1, 1, 1)
         ax1 = ax0
         plt.title(title)
-# TODO Figure out why this stopped working.
-    ax0.fill_between(mxm.index, mxm[maxc], mnm[maxc],
+    ax0.fill_between(mx.index, mx[maxc], mn[maxc],
                      color='C0', alpha=st.ma, label='Upper/Lower Highs')
-    ax1.fill_between(mxm.index, mxm[minc], mnm[minc],
+    ax1.fill_between(mx.index, mx[minc], mn[minc],
                      color='C1', alpha=st.ma, label='Upper/Lower Lows')
-    ax0.fill_between(umaxt.index, umaxt, lmaxt,
+    ax0.fill_between(afs.index, afs[umaxc], afs[lmaxc],
                      color='C0', alpha=st.sa, label='68% Range Highs')
-    ax1.fill_between(umint.index, umint, lmint,
+    ax1.fill_between(afs.index, afs[uminc], afs[lminc],
                      color='C1', alpha=st.sa, label='68% Range Lows')
-    ax0.plot(af[maxc], 'C0-', lw=2, alpha=st.ta, label='Average Highs')
-    ax1.plot(af[minc], 'C1-', lw=2, alpha=st.ta, label='Average Lows')
+    ax0.plot(afs[maxc], 'C0-', lw=2, alpha=st.ta, label='Average Highs')
+    ax1.plot(afs[minc], 'C1-', lw=2, alpha=st.ta, label='Average Lows')
     if combine:
-        ax0.plot(af[avgc], 'C2-', lw=st.tlw, alpha=st.ta, label='Average Daily')
+        ax0.plot(afs[avgc], 'C2-', lw=st.tlw, alpha=st.ta, label='Average Daily')
 
     # Add current available month as distinct points
-    ly = avm.index[-1]
+    ly = af.index[-1]
     marks = ['^', 'o', 'v']
-    maxvals = [mxm.iloc[-1,0], avm.iloc[-1,0], mnm.iloc[-1,0]]
-    minvals = [mxm.iloc[-1,1], avm.iloc[-1,1], mnm.iloc[-1,1]]
+    maxvals = [mx.iloc[-1,0], af.iloc[-1,0], mn.iloc[-1,0]]
+    minvals = [mx.iloc[-1,1], af.iloc[-1,1], mn.iloc[-1,1]]
     maxt = [' Max\n Day', ' Avg\n Day', ' Min\n Day']
     mint = [' Max\n Ngt', ' Avg\n Ngt', ' Min\n Ngt']
     maxt[0] = str(ly) + '\n' + maxt[0]
@@ -1380,24 +1343,24 @@ def MonthRangePlot(nf, month=None, combine=True,
             'Average Low', '68% Night Spread']
     va0 = ['top', 'bottom', 'bottom', 'top']
     va1 = ['top', 'bottom', 'top', 'bottom']
-    yrs = len(avm.index)
+    yrs = len(afs.index)
     xx0 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
     xx1 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
     xx0 = [int(x) for x in xx0]
     xx1 = [int(x) for x in xx1]
-    yy0 = [mid(mxm[maxc],.8), mid(mnm[maxc],.2),
-           af[maxc].iloc[xx0[2]], umaxt.iloc[xx0[3]]]
-    yy1 = [mid(mxm[minc]), mid(mnm[minc],.2),
-           af[minc].iloc[xx1[2]], lmint.iloc[xx1[3]]]
+    yy0 = [mid(mx[maxc],.8), mid(mn[maxc],.2),
+           afs[maxc].iloc[xx0[2]], afs[umaxc].iloc[xx0[3]]]
+    yy1 = [mid(mx[minc]), mid(mn[minc],.2),
+           afs[minc].iloc[xx1[2]], afs[lminc].iloc[xx1[3]]]
     for t, v, x, y in zip(txt0, va0, xx0, yy0):
-        ax0.text(avm.index[x], y, t, va=v,
+        ax0.text(afs.index[x], y, t, va=v,
                  ha='center', color='darkred', size='smaller')
     for t, v, x, y in zip(txt1, va1, xx1, yy1):
-        ax1.text(avm.index[x], y, t, va=v,
+        ax1.text(afs.index[x], y, t, va=v,
                  ha='center', color='darkblue', size='smaller')
     if combine:
-        x = avm.index[xx0[2]]
-        y = af[avgc].iloc[xx0[2]]
+        x = afs.index[xx0[2]]
+        y = afs[avgc].iloc[xx0[2]]
         ax0.text(x, y, 'Month Average',
                  ha='center', va='bottom', size='smaller')
 
