@@ -1344,8 +1344,8 @@ def MonthRangePlot(df, month=None, combine=True,
     va0 = ['top', 'bottom', 'bottom', 'top']
     va1 = ['top', 'bottom', 'top', 'bottom']
     yrs = len(afs.index)
-    xt0 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
-    xt1 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
+    xt0 = [yrs*.05, yrs*.05, yrs*.4, yrs*.25]
+    xt1 = [yrs*.05, yrs*.05, yrs*.4, yrs*.25]
     xt0 = [int(x) for x in xt0]  # text x locations
     xt1 = [int(x) for x in xt1]
     xp0 = [x+13 for x in xt0]  # arrow x locations
