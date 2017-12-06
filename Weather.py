@@ -1344,23 +1344,37 @@ def MonthRangePlot(df, month=None, combine=True,
     va0 = ['top', 'bottom', 'bottom', 'top']
     va1 = ['top', 'bottom', 'top', 'bottom']
     yrs = len(afs.index)
-    xx0 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
-    xx1 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
-    xx0 = [int(x) for x in xx0]
-    xx1 = [int(x) for x in xx1]
-    yy0 = [mid(mx[maxc],.8), mid(mn[maxc],.2),
-           afs[maxc].iloc[xx0[2]], afs[umaxc].iloc[xx0[3]]]
-    yy1 = [mid(mx[minc]), mid(mn[minc],.2),
-           afs[minc].iloc[xx1[2]], afs[lminc].iloc[xx1[3]]]
-    for t, v, x, y in zip(txt0, va0, xx0, yy0):
-        ax0.text(afs.index[x], y, t, va=v,
-                 ha='center', color='darkred', size='smaller')
-    for t, v, x, y in zip(txt1, va1, xx1, yy1):
-        ax1.text(afs.index[x], y, t, va=v,
-                 ha='center', color='darkblue', size='smaller')
+    xt0 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
+    xt1 = [yrs*.1, yrs*.1, yrs*.35, yrs*.2]
+    xt0 = [int(x) for x in xt0]  # text x locations
+    xt1 = [int(x) for x in xt1]
+    xp0 = [x+13 for x in xt0]  # arrow x locations
+    xp1 = [x+13 for x in xt1]
+    yt0 = [mid(mx[maxc],.8), mid(mn[maxc],.2),
+           afs[maxc].iloc[xt0[2]]+2, afs[umaxc].iloc[xt0[3]]-1]
+    yt1 = [mid(mx[minc]), mid(mn[minc],.2),
+           afs[minc].iloc[xt1[2]-2], afs[lminc].iloc[xt1[3]]+1]
+    yp0 = [mx[maxc].iloc[xp0[0]], mn[maxc].iloc[xp0[1]],
+           afs[maxc].iloc[xp0[2]], afs[umaxc].iloc[xp0[3]]]
+    yp1 = [mx[minc].iloc[xp0[0]], mn[minc].iloc[xp0[1]],
+           afs[minc].iloc[xp1[2]], afs[lminc].iloc[xp1[3]]]
+    props = {'arrowstyle': '->',
+             'edgecolor': 'k'}
+    for t, v, i, y, ip, yp in zip(txt0, va0, xt0, yt0, xp0, yp0):
+        x = afs.index[i]
+        xp = afs.index[ip]
+        ax0.annotate(t, (xp,yp), (x,y), va=v, ha='center',
+                     color='darkred', size='smaller',
+                     arrowprops=props)
+    for t, v, i, y, ip, yp in zip(txt1, va1, xt1, yt1, xp1, yp1):
+        x = afs.index[i]
+        xp = afs.index[ip]
+        ax1.annotate(t, (xp,yp), (x,y), va=v, ha='center',
+                     color='darkblue', size='smaller',
+                     arrowprops=props)
     if combine:
-        x = afs.index[xx0[2]]
-        y = afs[avgc].iloc[xx0[2]]
+        x = afs.index[xt0[2]]
+        y = afs[avgc].iloc[xt0[2]]
         ax0.text(x, y, 'Month Average',
                  ha='center', va='bottom', size='smaller')
 
