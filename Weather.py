@@ -1337,6 +1337,18 @@ def MonthRangePlot(df, month=None, combine=True,
         mx = max(x)
         return (mx-mn)*f + mn
 
+    def best(s, i, comp):
+        """Get the best point (highest or lowest) near the supplied point.
+
+        s: series
+        i: index location
+        comp: 'low' | 'high'
+        """
+        lim = 3
+        t = s.iloc[i-lim: i+lim]
+        t.sort_values(inplace=True, ascending=(comp=='low'))
+        return s.index.get_loc(t.index[0]), t.iloc[0]
+
     txt0 = ['Hottest Day', 'Coldest Day',
             'Average High', '68% Day Spread']
     txt1 = ['Hottest Night', 'Coldest Night',
@@ -1358,6 +1370,12 @@ def MonthRangePlot(df, month=None, combine=True,
            afs[maxc].iloc[xp0[2]], afs[umaxc].iloc[xp0[3]]]
     yp1 = [mx[minc].iloc[xp0[0]], mn[minc].iloc[xp0[1]],
            afs[minc].iloc[xp1[2]], afs[lminc].iloc[xp1[3]]]
+    # get closest peaks for annotation
+    xp0[0], yp0[0] = best(mx[maxc], xp0[0], 'high')
+    xp1[0], yp1[0] = best(mx[minc], xp1[0], 'high')
+    xp0[1], yp0[1] = best(mn[maxc], xp0[1], 'low')
+    xp1[1], yp1[1] = best(mn[minc], xp1[1], 'low')
+
     props = {'arrowstyle': '->',
              'edgecolor': 'k'}
     for t, v, i, y, ip, yp in zip(txt0, va0, xt0, yt0, xp0, yp0):
