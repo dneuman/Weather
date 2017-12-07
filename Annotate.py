@@ -244,7 +244,7 @@ def AddRate(*args, ax=None, label='{:.2}°C/decade', mult=10):
           x[-1]]                       # endpoints of fitted line
     p = np.poly1d(c)                   # create polynomial
     yy = p(xx)                         # calculate y values of line
-    plt.plot(xx, yy, 'k-', linewidth=2, alpha=0.75)
+    ax.plot(xx, yy, 'k-', linewidth=2, alpha=0.75)
     if c[0] >=0:
         xyt = (0, -3)
         va = 'top'
