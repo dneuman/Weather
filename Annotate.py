@@ -204,7 +204,7 @@ def Attribute(ha='right', va='bottom', author='Chart: @dan613',
             fontsize = size,
             transform=ax.transAxes)
 
-def AddRate(*args, label='{:.2}°C/decade', mult=10):
+def AddRate(*args, ax=None, label='{:.2}°C/decade', mult=10):
     """Add a rate line (linear regression) to current plot.
 
     AddRate(x, y, label='{:.2}°C/decade', mult=10) or
@@ -218,6 +218,8 @@ def AddRate(*args, label='{:.2}°C/decade', mult=10):
         list of y-values
     s : pandas.Series
         Contains values and index instead of x, y
+    ax : matplotlib.Axes
+        Axis to plot rate on. Uses first axes if not provided
     label : str opt default '{:.2}°C/decade'
         Template for the rate label of the fitted line. Uses the str.format()
         values for a single variable imput.
@@ -233,7 +235,8 @@ def AddRate(*args, label='{:.2}°C/decade', mult=10):
     else:
         print('Unexpected input. Use:\n  AddRate(x,y) or\n  AddRate(s)\n'
               'where x and y are lists-like, and s is a pandas series.')
-    ax = _gfa()
+    if ax==None:
+        ax = _gfa()
     c = np.polyfit(x, y, 1)            # fit a line to data
     rate = label.format(c[0]*mult)
     xx = [x[0],
