@@ -1306,6 +1306,9 @@ def MonthRangePlot(df, month=None, combine=True,
                      color='C0', alpha=st.sa, label='68% Range Highs')
     ax1.fill_between(afs.index, afs[uminc], afs[lminc],
                      color='C1', alpha=st.sa, label='68% Range Lows')
+    if not combine:
+        at.AddRate(afs[maxc].loc[1970:], ax=ax0)
+        at.AddRate(afs[minc].loc[1970:], ax=ax1)
     ax0.plot(afs[maxc], 'C0-', lw=2, alpha=st.ta, label='Average Highs')
     ax1.plot(afs[minc], 'C1-', lw=2, alpha=st.ta, label='Average Lows')
     if combine:
