@@ -1028,7 +1028,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
     elif style == 'stack': sStack = True
     else: sFill = True
     #     Name, Lower Limit, Upper Limit, Column, Color
-    props = [['Snow', '', 0, 0,  16, 'darkgrey'],
+    props = [['Snow', '', 0, 0,  16, 'white'],
              ['Rain', '', 0, 0, 14, 'g'],
              ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
              ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
@@ -1041,10 +1041,6 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
     tmap = {}
     [cmap.update({p[0]:p[5]}) for p in props]
     [tmap.update({p[0]:' '.join([p[0], p[1]])}) for p in props]
-
-
-    #sd = pd.Timestamp(dt.date(start,1,1))
-    #si = df.index.get_loc(sd)
 
     # make a separate frames for wet and dry days
     cn = df.columns[4] # dry column name (Max Temp)
@@ -1091,13 +1087,18 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
         sums = data.sum()
         sums.sort_values(inplace=True, ascending=False)
         plotOrd = list(sums.index)
+        fa = 0.75
+        fl = tmap.copy()
+        if trend:
+            fa = 0.15
+            [fl.update({k:''}) for k in fl.keys()]
         for p in plotOrd:
             ax.fill_between(data.index, data[p].values,
-                            color=cmap[p], alpha=0.75, label=tmap[p])
+                            color=cmap[p], alpha=fa, label=fl[p])
         if trend:
             for p in plotOrd:
-                ax.plot(tf.index, tf[p].values,
-                        color=cmap[p], alpha=1.0, label='')
+                ax.plot(tf.index, tf[p].values, lw=3.0,
+                        color=cmap[p], alpha=1.0, label=tmap[p])
     elif sStack:
         ax.stackplot(data.index, data.values.T,
                       colors=colors, alpha=0.6, labels=labels)
