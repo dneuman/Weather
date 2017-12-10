@@ -1008,11 +1008,14 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
     use : list of int default [0,1,2,3,4,5,6,7]
         Data to plot.
     style : ['fill' | 'stack' | 'line'] default 'fill'
-        Style of plot to make.
+        Style of plot to make. 'fill' fills the line to the baseline. 'stack'
+        makes a stack plot where the areas add to 100%. 'line' has no fill
+        and just shows the data.
     trend : [None | 'wma' | 'ssa' | 'lowess'] default None
         What kind of trend line to use
     trendonly : boolean default False
-        True if only the trend line is needed.
+        True if only the trend line is needed. The style keyword determines
+        how it will look.
     size : int default 21
         Size of the smoothing window
     fignum : int opt default 5
