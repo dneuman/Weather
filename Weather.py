@@ -521,7 +521,7 @@ class WxDF(pd.DataFrame):
 
 def _ToNow(t):
     """Take a timestamp and return same day in 2016"""
-    return pd.Timestamp(dt.date(2016, t.month, t.day))
+    return t.replace(year=2016)
 
 def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True,
             func=np.mean):
@@ -823,7 +823,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
 
     def ToNow(t):
         """Take a timestamp and return same day in 2016"""
-        return pd.Timestamp(dt.date(2016, t.month, t.day))
+        return t.replace(year=2016)
 
     start = 1960  # start date for x-axis
     # set up data for each set of records:
@@ -1142,6 +1142,48 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
     ax2.set_ylabel('Percent of Year')
     fig.show()
 
+def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
+    """
+    Plot the length of the warm season over time.
+
+    Parameters
+    ----------
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which algorithm to use. Defaults fo 'wma' if input is not recognized.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
+    follow : int [1 | 2] default 2
+        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
+        Applied to polynomial order for 'lowess', and number of components
+        for 'ssa'.
+    fignum : int opt default 6
+        Figure to use. Useful to keep multiple plots separated.
+    """
+
+    af = df.iloc[:,[0,4,6]].copy()
+    yc, maxc, minc = df.columns[[0,4,6]]
+    dy = ' Day'
+    tr = ' Trend'
+    ny = pd.Timestamp(year=2016, month=1, day=1)
+    for c in [maxc, minc]:
+        af[c] = sm.Smooth(df[c], 61, trend, None, follow)
+    by = af.loc[af.index.dayofyear < 182]  # beginning of year
+    ey = af.loc[af.index.dayofyear > 182]  # end of year
+    wby = by.groupby(yc).mean()  # just getting the proper index
+    wey = wby.copy()
+    for f, h in zip([wby, wey], [by, ey]):
+        for c in [maxc, minc]:
+            # get date for each year where it is just above freezing
+            f[c+dy] = h.loc[h[c]>0, [yc, c]].groupby(yc).idxmin()
+            a = f[c+dy].apply(lambda x: x.dayofyear)
+            a = sm.Smooth(a, 21, trend, pad, follow)
+            f[c+tr] = a.apply(lambda x: ny + pd.to_timedelta(x-1, unit='d'))
+    return wby, wey
+
+
 
 def SnowPlot(df, fignum=6):
     """
@@ -1149,7 +1191,7 @@ def SnowPlot(df, fignum=6):
 
     Parameters
     ----------
-     df : WxDF
+    df : WxDF
         object containing daily data for a location. Can use a
         pandas.DataFrame if df.city comtains the name of the city.
     fignum : int opt default 6
