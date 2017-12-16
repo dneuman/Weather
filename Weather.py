@@ -821,10 +821,6 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
         Figure to use. Useful to keep multiple plots separated.
     """
 
-    def ToNow(t):
-        """Take a timestamp and return same day in 2016"""
-        return t.replace(year=2016)
-
     start = 1960  # start date for x-axis
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
@@ -870,7 +866,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
             if compare(s, r[month,day]):
                 r[month,day] = s
                 x.append(df.index[i].year)
-                y.append(ToNow(df.index[i]))
+                y.append(df.index[i].replace(year=2016))
                 counts[pi, df.iat[i,0]-yrmin] += 1
         # drop any dates before 1960
         for i in range(len(x)):
@@ -935,7 +931,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     # Set up axis formatting
     at.MonthFmt(ax)
     # ticks must be set before the first plot, or they will be locked in
-    # Adds space, and assumes data is for 2016 from _ToNow()
+    # Adds space, and assumes data is for 2016.
     ax.set_ylim((dt.date(2015,12,16), dt.date(2017,1,14)))
     if start >= 1940:
         ax.set_xticks(np.arange(start, 2021, 5))
@@ -956,12 +952,11 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
 
     # Make a new dataframe starting at the desired location, and make
     # a column with the correct date, but year as 2016, for plotting
-    dcols = ['year','Month','Day']
     d = dt.datetime(start,1,1)
     ix = df.index.get_loc(d)
     tf = df.iloc[ix:,:].copy()
-    tf['year']=2016  # make a new column with just 2016 for datetime
-    tf['Now'] = tf[dcols].apply(lambda s: dt.datetime(*s), axis=1)
+    tf['Now'] = tf.index
+    tf['Now'] = tf['Now'].apply(lambda t: t.replace(year=2016))
 
     # make a separate frames for wet and dry days
     cn = tf.columns[4] # dry column name (Max Temp)
