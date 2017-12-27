@@ -519,10 +519,6 @@ class WxDF(pd.DataFrame):
 
         return yf
 
-def _ToNow(t):
-    """Take a timestamp and return same day in 2016"""
-    return t.replace(year=2016)
-
 def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True,
             func=np.mean):
     """Make an estimate of the mean temperature for the last year in data.
@@ -1157,6 +1153,7 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
     fignum : int opt default 6
         Figure to use. Useful to keep multiple plots separated.
     """
+    import matplotlib.dates as mdates
 
     af = df.iloc[:,[0,4,6]].copy()
     yc, maxc, minc = df.columns[[0,4,6]]
@@ -1173,11 +1170,64 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
         for c in [maxc, minc]:
             # get date for each year where it is just above freezing
             f[c+dy] = h.loc[h[c]>0, [yc, c]].groupby(yc).idxmin()
+            f[c+dy] = f[c+dy].apply(lambda x: x.replace(year=2016))
             a = f[c+dy].apply(lambda x: x.dayofyear)
             a = sm.Smooth(a, 21, trend, pad, follow)
             f[c+tr] = a.apply(lambda x: ny + pd.to_timedelta(x-1, unit='d'))
-    return wby, wey
 
+    # Set up plot
+    majorLoc = mdates.DayLocator([5, 10, 15, 20, 25, 30])
+    minorLoc = mdates.DayLocator(np.arange(1,32))
+    majorFmt = mdates.DateFormatter('%b %d')
+    minorFmt = mdates.DateFormatter('')
+    majorFmtRt = mdates.DateFormatter('%d %b')
+
+    fig = plt.figure(fignum)
+    fig.clear()
+    title = "Period of Above Freezing Temperatures for " + df.city
+    fig.suptitle(title)
+    fig.subplots_adjust(hspace=0.01, wspace=0.1,
+                        left=0.08, right=0.92,
+                        bottom=0.05, top=0.95)
+    ax0 = fig.add_subplot(2, 1, 2)  # bottom chart
+    ax1 = fig.add_subplot(2, 1, 1)
+
+    ax1.spines['bottom'].set_visible(False)
+    ax0.spines['top'].set_visible(False)
+    ax1.xaxis.tick_top()
+    ax1.tick_params(labeltop='off')  # don't put tick labels at the top
+    ax0.xaxis.tick_bottom()
+    ax1.tick_params(axis='x', which='major', color=(0,0,0,0))
+
+    # ax0 is on the bottom and should hold the beginning year results (wby)
+    # Set Y Label positions and formats
+    for ax, f, mxc, mnc in zip([ax0, ax1], [wby, wey],
+                               [maxc, minc], [minc, maxc]):
+        ax.set_ylim(f[mxc+dy].min(), f[mnc+dy].max())
+        ax.yaxis.set_major_locator(majorLoc)
+        ax.yaxis.set_minor_locator(minorLoc)
+        ax.yaxis.set_major_formatter(majorFmt)
+        ax.yaxis.set_minor_formatter(minorFmt)
+
+    for ax, f in zip([ax0, ax1], [wby, wey]):
+        for c, co in zip([maxc, minc], ['C0', 'C1']):
+            ax.plot(f[c+tr], co+'-', lw=st.tlw, alpha=st.ta)
+            ax.plot(f[c+dy], co+'o-', lw=st.dlw, alpha=st.da)
+
+    # Add labels on right
+    ax2 = ax0.twinx()
+    ax3 = ax1.twinx()
+    for ax, axo in zip([ax2, ax3], [ax0, ax1]):
+        ax.grid(False) # is sitting on top of lines
+        ax.set_yticks(axo.get_yticks())
+        ax.set_ylim(axo.get_ylim())
+        ax.yaxis.set_major_locator(majorLoc)
+        ax.yaxis.set_minor_locator(minorLoc)
+        ax.yaxis.set_major_formatter(majorFmtRt)
+        ax.yaxis.set_minor_formatter(minorFmt)
+        ax.spines['right'].set_alpha(0)
+
+    plt.show()
 
 
 def SnowPlot(df, fignum=6):
@@ -1557,3 +1607,4 @@ def CompareSmoothing(df, cols=[8],
 
 if __name__=='__main__':
     df = WxDF()
+    WarmPlot(df)
