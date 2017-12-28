@@ -1176,11 +1176,11 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
             f[c+tr] = a.apply(lambda x: ny + pd.to_timedelta(x-1, unit='d'))
 
     # Set up plot
-    majorLoc = mdates.DayLocator([5, 10, 15, 20, 25, 30])
-    minorLoc = mdates.DayLocator(np.arange(1,32))
     majorFmt = mdates.DateFormatter('%b %d')
     minorFmt = mdates.DateFormatter('')
     majorFmtRt = mdates.DateFormatter('%d %b')
+    xlim = (wby.index.min()-5, wby.index.max()+5)
+    xticks = np.arange((xlim[0]//10*10), ((xlim[1]//10+1)*10), 10)
 
     fig = plt.figure(fignum)
     fig.clear()
@@ -1204,11 +1204,13 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
     for ax, f, mxc, mnc in zip([ax0, ax1], [wby, wey],
                                [maxc, minc], [minc, maxc]):
         ax.set_ylim(f[mxc+dy].min(), f[mnc+dy].max())
-        ax.yaxis.set_major_locator(majorLoc)
-        ax.yaxis.set_minor_locator(minorLoc)
+        # locators must be declared separately for each plot
+        ax.yaxis.set_major_locator(mdates.DayLocator(range(5,32,5)))
+        ax.yaxis.set_minor_locator(mdates.DayLocator())
         ax.yaxis.set_major_formatter(majorFmt)
         ax.yaxis.set_minor_formatter(minorFmt)
-
+        ax.set_xticks(xticks)
+        ax.set_xlim(xlim[0], xlim[1])
     for ax, f in zip([ax0, ax1], [wby, wey]):
         for c, co in zip([maxc, minc], ['C0', 'C1']):
             ax.plot(f[c+tr], co+'-', lw=st.tlw, alpha=st.ta)
@@ -1221,8 +1223,8 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
         ax.grid(False) # is sitting on top of lines
         ax.set_yticks(axo.get_yticks())
         ax.set_ylim(axo.get_ylim())
-        ax.yaxis.set_major_locator(majorLoc)
-        ax.yaxis.set_minor_locator(minorLoc)
+        ax.yaxis.set_major_locator(axo.yaxis.get_major_locator())
+        ax.yaxis.set_minor_locator(axo.yaxis.get_minor_locator())
         ax.yaxis.set_major_formatter(majorFmtRt)
         ax.yaxis.set_minor_formatter(minorFmt)
         ax.spines['right'].set_alpha(0)
