@@ -1216,6 +1216,14 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
             ax.plot(f[c+tr], co+'-', lw=st.tlw, alpha=st.ta)
             ax.plot(f[c+dy], co+'o-', lw=st.dlw, alpha=st.da)
 
+    # Create legend entries manually
+    handles = []
+    for c, t in zip(['C0', 'C1'], ['Daily High', 'Daily Low']):
+        line = mlines.Line2D([], [], color=c,
+                             alpha=1.0, lw=st.tlw, label=t+' Crossover')
+        handles.append(line)
+    plt.legend(handles=handles, loc=2)
+
     # Add labels on right
     ax2 = ax0.twinx()
     ax3 = ax1.twinx()
