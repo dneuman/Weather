@@ -156,12 +156,15 @@ def Baseline(range):
     plt.text(bx[1], by[1]-.01, 'Baseline', size='larger',
              va='top', transform=ax.transAxes)
 
-def Attribute(ha='right', va='bottom', author='Chart: @dan613',
+def Attribute(ax=None, ha='right', va='bottom', author='Chart: @dan613',
               source='', date=''):
     """Add an attribute to current plot.
 
     Parameters
     ----------
+    ax : Matplotlab.Axes
+        The axes the attribute is to be added to. Not sending one will plot
+        on the first axis of the current figure.
     ha : str ['right' | 'left'] opt default 'right'
         Horizontal alignment of attribute
     va : str ['top' | 'bottom' | 'below'] opt default 'bottom'
@@ -179,7 +182,8 @@ def Attribute(ha='right', va='bottom', author='Chart: @dan613',
     If using the va='below' option, it is up to the calling routine to make
     sure there is enough room under the x-axis.
     """
-    ax = _gfa()
+    if not ax:
+        ax = _gfa()
     size = 'medium'
     loc = {'top': .99,
            'bottom': .01,
