@@ -234,12 +234,14 @@ class WxDF(pd.DataFrame):
     def __str__(self):
         """Return a formatted summary of the data
         """
-        hMap = {'Data Quality':'Qual', 'Max Temp (°C)':'Max Temp',
-                'Min Temp (°C)':'Min Temp', 'Mean Temp (°C)':'Mean Temp',
-                'Total Precip (mm)':'Precip'}
+        hMap = {'Data Quality':'Qual', 'Max Temp (°C)':'Tmax',
+                'Min Temp (°C)':'Tmin', 'Mean Temp (°C)':'Tavg',
+                'Total Rain (mm)': 'Rain', 'Total Snow (cm)': 'Snow',
+                'Total Precip (mm)':'Prec'}
+        mincw = 7  # minimum column width
 
         def GetLine(r):
-            """Format a row into a string
+            """Format row r into a string
             """
             # hdgs and lbl are defined outside function
             if hasattr(self.index[0], 'year'):
@@ -247,7 +249,7 @@ class WxDF(pd.DataFrame):
             else:
                 st = str(self.index[r]).ljust(10)
             for i, c in enumerate(lbl):
-                num = max(7, len(hdgs[i])+2)
+                num = max(mincw, len(hdgs[i]))
                 if type(self[c].iloc[r]) is np.float64:
                     st = st + '{:.1f}'.format(self[c].iloc[r]).rjust(num)
                 else:
@@ -258,7 +260,7 @@ class WxDF(pd.DataFrame):
         if not hasattr(self, 'period'):
             num = min(3, len(self.columns))
             lbl = list(self.columns[0:num])
-            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+            hdgs = [l.rjust(max(mincw,len(l))) for l in lbl]
         elif self.period == 'daily' or len(self.columns)==26:
             full = list(hMap.keys())
             avail = list(self.columns)
@@ -267,20 +269,20 @@ class WxDF(pd.DataFrame):
                 if h in avail:
                     lbl.append(h)
             hdgs = [hMap[h] for h in lbl]
-            hdgs = [h.rjust(max(7,len(h))) for h in hdgs]
+            hdgs = [h.rjust(max(mincw,len(h))) for h in hdgs]
         elif self.period == 'monthly':
             cols = [0, 5, 11]
             lbl = list(self.columns[cols])
-            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+            hdgs = [l.rjust(max(mincw,len(l))) for l in lbl]
         elif self.period == 'annual':
             lbl = list(self.columns)
-            hdgs = [l.rjust(max(7,len(l))) for l in lbl]
+            hdgs = [l.rjust(max(mincw,len(l))) for l in lbl]
         last = self.GetLastDay()
         first = self.GetFirstDay()
         s = ''
         if hasattr(self, 'city') and self.city is not None:
             s = "City: {0}  Type: {1}\n".format(self.city, self.type)
-        s = s + "Date        " + "  ".join(hdgs)
+        s = s + "Date      " + "".join(hdgs)
         if first > 0:
             s = '\n'.join([s, GetLine(0), '...', GetLine(first-1)])
         for i in range(first, first+5):
@@ -1617,4 +1619,4 @@ def CompareSmoothing(df, cols=[8],
 
 if __name__=='__main__':
     df = WxDF()
-    WarmPlot(df)
+    print(df)
