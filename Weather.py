@@ -789,7 +789,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
     # Annotate chart
     if change:
         at.Baseline(df.baseline)
-    at.Attribute(source=st.source)
+    at.Attribute(source=st.source, ha='left')
     plt.legend(handles=handles, loc=2)
 
     at.AddYAxis(ax)
@@ -1225,6 +1225,7 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
                              alpha=1.0, lw=st.tlw, label=t+' Crossover')
         handles.append(line)
     plt.legend(handles=handles, loc=2)
+    at.Attribute(ax=ax0, source=st.source)
 
     # Add labels on right
     ax2 = ax0.twinx()
@@ -1239,6 +1240,74 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
         ax.yaxis.set_minor_formatter(minorFmt)
         ax.spines['right'].set_alpha(0)
 
+    plt.show()
+
+def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
+    """
+    Plot the length of the warm season over time.
+
+    Parameters
+    ----------
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which algorithm to use. Defaults fo 'wma' if input is not recognized.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
+    follow : int [1 | 2] default 2
+        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
+        Applied to polynomial order for 'lowess', and number of components
+        for 'ssa'.
+    fignum : int opt default 7
+        Figure to use. Useful to keep multiple plots separated.
+    """
+
+    af = df.iloc[:,[0,4,6]].copy()
+    yc, maxc, minc = df.columns[[0,4,6]]
+    dy = ' Day'
+    tr = ' Trend'
+    for c in [maxc, minc]:
+        af[c] = sm.Smooth(df[c], 61, trend, None, follow)
+    by = af.loc[af.index.dayofyear < 182]  # beginning of year
+    ey = af.loc[af.index.dayofyear > 182]  # end of year
+    wby = by.groupby(yc).mean()  # just getting the proper index
+    wey = wby.copy()
+    diff = wby.copy()
+    cy=wby.copy()  # count of all days above freezing
+    xlim = (wby.index.min()-5, wby.index.max()+5)
+    xticks = np.arange((xlim[0]//10*10), ((xlim[1]//10+1)*10), 10)
+    for c in [maxc, minc]:
+        for f, h in zip([wby, wey], [by, ey]):
+            # get date for each year where it is just above freezing
+            f[c+dy] = h.loc[h[c]>0, [yc, c]].groupby(yc).idxmin()
+            f[c+dy] = f[c+dy].apply(lambda x: x.dayofyear)
+        diff[c+dy] = wey[c+dy] - wby[c+dy]
+        diff[c+tr] = sm.Smooth(diff[c+dy], 21, trend, pad, follow)
+        # Collect data on total days, which might be useful later
+        cy[c+dy] = df.loc[df[c]>0, [yc, c]].groupby(yc).count()
+        cy[c+tr] = sm.Smooth(cy[c+dy], 21, trend, pad, follow)
+
+    fig = plt.figure(fignum)
+    fig.clear()
+    ax = fig.add_subplot(111)
+    ax.set_xticks(xticks)
+    ax.set_xlim(xlim[0], xlim[1])
+    for c, co, l in zip([maxc, minc], ['C0', 'C1'],
+                        ['Daily High above 0°C', 'Daily Low above 0°C']):
+        ax.plot(diff[c+dy], 'o-', color=co, lw=st.dlw, alpha=st.da, label='')
+        ax.plot(diff[c+tr], '-', color=co, lw=st.tlw, alpha=st.ta,
+                label=l)
+        #ax.plot(cy[c+dy], '.', color=co, lw=st.dlw, alpha=st.da, label='')
+        #ax.plot(cy[c+tr], '-', color=co, lw=st.dlw, alpha=st.da, label='')
+        at.AddRate(diff[c+tr].loc[1970:], label='{:.2} days/decade')
+
+    plt.title('Length of Period With Average Temperature\n'
+              'above Freezing for ' + df.city)
+    plt.ylabel('Days')
+    plt.legend()
+    at.Attribute(source=st.source)
+    at.AddYAxis(ax)
     plt.show()
 
 
@@ -1620,3 +1689,4 @@ def CompareSmoothing(df, cols=[8],
 if __name__=='__main__':
     df = WxDF()
     print(df)
+    WarmDaysPlot(df)
