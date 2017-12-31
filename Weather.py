@@ -966,6 +966,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
 
     # Just select the rows that meet the criteria, then plot that row's
     # Year vs Now (Now being the date moved to 2016).
+    handles = []  # create legend manually
     for name, r, ll, ul, col, c in props:
         cn = tf.columns[col]
         if col in [14, 16]:
@@ -974,12 +975,15 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
             sf = dryf.loc[dryf[cn]>=ll]
             sf = sf.loc[sf[cn]<ul]
         ax.plot(sf.Year, sf.Now, '_', color=c, alpha=1.0, markersize=4,
-                label=' '.join([name,r]))
+                label='')
+        line = mpatches.Patch(color=c, label=' '.join([name,r]))
+        handles.append(line)
+
 
     # Annotate chart
     plt.title('Precipitation (Rain, Snow) or \n'
-              'Dry Days (by Temperature Range) in '+ df.city)
-    ax.legend(loc='upper left', ncol=4, markerscale=3,
+              'Dry Days (by Daily High Temperature Range) in '+ df.city)
+    ax.legend(loc='upper left', ncol=4, markerscale=3, handles=handles,
               bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
     at.Attribute(va='below', source=st.source)
 
@@ -989,7 +993,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     return
 
 def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
-                 trend=None, trendonly=False, size=21,
+                 trend=None, trendonly=False, size=21, follow=1, pad='linear',
                  fignum=5):
     """Go through all data and plot what the weather was like for each day.
 
@@ -1011,6 +1015,12 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
         how it will look.
     size : int default 21
         Size of the smoothing window
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
+    follow : int [1 | 2] default 2
+        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
+        Applied to polynomial order for 'lowess', and number of components
+        for 'ssa'.
     fignum : int opt default 5
         Figure to use. Useful to keep multiple plots separated.
     """
@@ -1033,8 +1043,8 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
              ['Warm', '(25–30)', 25, 30, 4, 'red'],
              ['Hot', '(≥30)', 30, 100, 4, 'k']]
     props = [props[i] for i in use]
-    cmap = {}
-    tmap = {}
+    cmap = {}  # colour map
+    tmap = {}  # text values (label and range)
     [cmap.update({p[0]:p[5]}) for p in props]
     [tmap.update({p[0]:' '.join([p[0], p[1]])}) for p in props]
 
@@ -1068,36 +1078,46 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
         colors.append(c)
         labels.append(' '.join([name,r]))
 
-    if trend:
+    if trend or trendonly:
+        if not trend: trend='wma'  # set default trend type if not given
         tf = pd.DataFrame(index=data.index)
         for t in data:
-            tf[t] = sm.Smooth(data[t], size=size, trend=trend)
+            tf[t] = sm.Smooth(data[t], size=size, trend=trend, pad=pad,
+                              follow=follow)
 
     if trendonly:
         # Use the trend data instead of actual data
         trend = None
         data = tf
 
+    # Create legend entries manually
+    handles = []
+    def AddLegend(c, t):
+         # add a legend entry for this color
+        line = mpatches.Patch(color=c, label=t)
+        handles.append(line)
+
+    sums = data.sum()  # sort by total area
+    sums.sort_values(inplace=True, ascending=False)
+    plotOrd = list(sums.index)
+
     if sFill:
         # Get plot order
-        sums = data.sum()
-        sums.sort_values(inplace=True, ascending=False)
-        plotOrd = list(sums.index)
         fa = 0.75
-        fl = tmap.copy()
         if trend:
             fa = 0.15
-            [fl.update({k:''}) for k in fl.keys()]
         for p in plotOrd:
             ax.fill_between(data.index, data[p].values,
-                            color=cmap[p], alpha=fa, label=fl[p])
+                            color=cmap[p], alpha=fa, label='')
+            AddLegend(cmap[p], tmap[p])
         if trend:
             for p in plotOrd:
                 ax.plot(tf.index, tf[p].values, lw=3.0,
-                        color=cmap[p], alpha=1.0, label=tmap[p])
+                        color=cmap[p], alpha=1.0, label='')
     elif sStack:
         ax.stackplot(data.index, data.values.T,
                       colors=colors, alpha=0.6, labels=labels)
+        [AddLegend(c, t) for c, t in zip(colors, labels)]
         if trend:
             sf = pd.DataFrame(index=tf.index)
             sf['sum']=0
@@ -1106,15 +1126,21 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
                 ax.plot(sf['sum'].index, sf['sum'].values.T,
                         color = cmap[p], label='')
     elif sLine:
-        for p in data:
+        for p in plotOrd:
+            AddLegend(cmap[p], tmap[p])
             if not trend:
-                ax.plot(data.index, data[p].values, '-',
-                                color=cmap[p], alpha=0.8,
-                                label=tmap[p])
+                if trendonly:
+                    ax.plot(data.index, data[p].values, '-',
+                                    color=cmap[p], alpha=st.ta, lw=st.tlw,
+                                    label='')
+                else:
+                    ax.plot(data.index, data[p].values, '-',
+                                    color=cmap[p], alpha=st.ta, lw=st.dlw,
+                                    label='')
             else:
                 ax.plot(data.index, data[p].values, '-',
-                                color=cmap[p], alpha=st.da, lw=st.dlw,
-                                label=tmap[p])
+                                color=cmap[p], alpha=st.da+.1, lw=st.dlw,
+                                label='')
                 ax.plot(tf.index, tf[p].values,
                     color=cmap[p], alpha=st.ta, lw = st.tlw,
                     label='')
@@ -1124,9 +1150,9 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
 
     # Annotate chart
     plt.title('Precipitation (Rain, Snow) or \n'
-              'Dry Days (by Temperature Range) in '+ df.city)
+              'Dry Days (by Daily High Temperature Range) in '+ df.city)
     ax.set_ylabel('Number of Days per Year')
-    ax.legend(loc='upper left', ncol=4, markerscale=3,
+    ax.legend(handles=handles, loc='upper left', ncol=4, markerscale=3,
               bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
     at.Attribute(va='below', source=st.source)
 
@@ -1689,4 +1715,3 @@ def CompareSmoothing(df, cols=[8],
 if __name__=='__main__':
     df = WxDF()
     print(df)
-    WarmDaysPlot(df)
