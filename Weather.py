@@ -992,7 +992,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     plt.show()
     return
 
-def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
+def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=4, style='fill',
                  trend=None, trendonly=False, size=21, follow=1, pad='linear',
                  fignum=5):
     """Go through all data and plot what the weather was like for each day.
@@ -1004,6 +1004,8 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
         pandas.DataFrame if df.city comtains the name of the city.
     use : list of int default [0,1,2,3,4,5,6,7]
         Data to plot.
+    column : int [4 | 6 | 8] default 4
+        Which data column to use, (high, low, mean).
     style : ['fill' | 'stack' | 'line'] default 'fill'
         Style of plot to make. 'fill' fills the line to the baseline. 'stack'
         makes a stack plot where the areas add to 100%. 'line' has no fill
@@ -1039,9 +1041,12 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
              ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
              ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
              ['Cold', '(0–15)', 0, 15, 4, 'peru'],
-             ['Cool', '(15–25)', 15, 25, 4, 'orange'],
-             ['Warm', '(25–30)', 25, 30, 4, 'red'],
+             ['Cool', '(15–23)', 15, 23, 4, 'orange'],
+             ['Warm', '(23–30)', 23, 30, 4, 'red'],
              ['Hot', '(≥30)', 30, 100, 4, 'k']]
+    ct = {4: 'High',
+          6: 'Low',
+          8: 'Mean'}
     props = [props[i] for i in use]
     cmap = {}  # colour map
     tmap = {}  # text values (label and range)
@@ -1049,7 +1054,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
     [tmap.update({p[0]:' '.join([p[0], p[1]])}) for p in props]
 
     # make a separate frames for wet and dry days
-    cn = df.columns[4] # dry column name (Max Temp)
+    cn = df.columns[column] # dry column name (Max Temp)
     precip = df.columns[[0,14,16,18]]
     dryf = df.loc[lambda d: d[precip[3]]==0, ['Year', cn]]
     wetf = df.loc[lambda d: d[precip[3]]>0, precip]
@@ -1066,12 +1071,15 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
     colors = []
     labels = []
     for name, r, ll, ul, col, c in props:
-        cn = df.columns[col]
+        if col == 4:
+            cn = df.columns[column]
+        else:
+            cn = df.columns[col]
         if col in [14, 16]:
             sf = wetf.loc[wetf[cn]>0, ['Year', cn]]
         else:
             sf = dryf.loc[dryf[cn]>=ll, ['Year',cn]]
-            sf = sf.loc[dryf[cn]<ul]
+            sf = sf.loc[sf[cn]<ul]
         gr = sf.groupby('Year').count()
         data[name] = gr[cn]
         data.loc[np.isnan(data[name]), name] = 0
@@ -1150,9 +1158,175 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], style='fill',
 
     # Annotate chart
     plt.title('Precipitation (Rain, Snow) or \n'
-              'Dry Days (by Daily High Temperature Range) in '+ df.city)
+              'Dry Days (by Daily ' + ct[column] +
+              ' Temperature Range) in '+ df.city)
     ax.set_ylabel('Number of Days per Year')
     ax.legend(handles=handles, loc='upper left', ncol=4, markerscale=3,
+              bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
+    at.Attribute(va='below', source=st.source)
+
+    # Add second y-axis with percentages on right
+    ax2, pad = at.AddYAxis(ax, percent=365)
+    ax2.set_ylabel('Percent of Year')
+    fig.show()
+
+def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=4, style='fill',
+                 trend=None, trendonly=False, size=21, follow=1, pad='linear',
+                 fignum=5):
+    """Count the days in each temperature range. Plot in various formats.
+
+    Parameters
+    ----------
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    use : list of int default [0,1,2,3,4,5,6,7]
+        Data to plot. (Frigid, Freezing, Cold, Cool, Warm, Hot)
+    column : int [4 | 6 | 8] default 4
+        Which data column to use, (high, low, mean).
+    style : ['fill' | 'stack' | 'line'] default 'fill'
+        Style of plot to make. 'fill' fills the line to the baseline. 'stack'
+        makes a stack plot where the areas add to 100%. 'line' has no fill
+        and just shows the data.
+    trend : [None | 'wma' | 'ssa' | 'lowess'] default None
+        What kind of trend line to use
+    trendonly : boolean default False
+        True if only the trend line is needed. The style keyword determines
+        how it will look.
+    size : int default 21
+        Size of the smoothing window
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
+    follow : int [1 | 2] default 2
+        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
+        Applied to polynomial order for 'lowess', and number of components
+        for 'ssa'.
+    fignum : int opt default 5
+        Figure to use. Useful to keep multiple plots separated.
+    """
+    fig = plt.figure(fignum)
+    fig.clear()
+    ax = fig.add_subplot(111)
+
+    sFill = sLine = sStack = False
+    if style == 'line': sLine = True
+    elif style == 'stack': sStack = True
+    else: sFill = True
+    #     Name, Lower Limit, Upper Limit, Column, Color
+    props = [['Frigid', '(< -15°C)', -100, -15, 'b'],
+             ['Freezing', '(-15–0)', -15, 0, 'c'],
+             ['Cold', '(0–15)', 0, 15, 'peru'],
+             ['Cool', '(15–22)', 15, 22, 'orange'],
+             ['Warm', '(22–30)', 22, 30, 'red'],
+             ['Hot', '(≥30)', 30, 100, 'k']]
+    props = [props[i] for i in use]  # only include provided columns
+    cmap = {}  # colour map
+    tmap = {}  # text values (label and range)
+    [cmap.update({p[0]:p[4]}) for p in props]
+    [tmap.update({p[0]:' '.join([p[0], p[1]])}) for p in props]
+
+    cn = df.columns[column] # column name
+    df = df.loc[:, ['Year', cn]]
+    # Create empty frame for when all df data is outside a test case
+    dfmx = df[cn].max()
+    dfmn = df[cn].min()
+    dfz = pd.DataFrame(index=np.arange(df.index[0].year,
+                                       df.index[-1].year + 1))
+
+    x = list(range(df.index[0].year, df.index[-1].year+1))
+    data = pd.DataFrame(index=x, dtype=int)
+    colors = []
+    labels = []
+    for name, r, ll, ul, c in props:
+        if (ll > dfmx) or (ul < dfmn):  # handle case where no data results
+            gr = dfz
+            gr[cn] = 0
+        else:
+            sf = df[(df[cn]>=ll) & (df[cn]<ul)]
+            gr = sf.groupby('Year').count()
+        data[name] = gr[cn]
+        data.loc[np.isnan(data[name]), name] = 0  # set nan to 0
+        colors.append(c)
+        labels.append(' '.join([name,r]))
+
+    if trend or trendonly:
+        if not trend: trend='wma'  # set default trend type if not given
+        tf = pd.DataFrame(index=data.index)
+        for t in data:
+            tf[t] = sm.Smooth(data[t], size=size, trend=trend, pad=pad,
+                              follow=follow)
+
+    if trendonly:
+        # Use the trend data instead of actual data
+        trend = None
+        data = tf
+
+    # Create legend entries manually
+    handles = []
+    def AddLegend(c, t):
+         # add a legend entry for this color
+        line = mpatches.Patch(color=c, label=t)
+        handles.append(line)
+
+    sums = data.sum()  # sort by total area
+    sums.sort_values(inplace=True, ascending=False)
+    plotOrd = list(sums.index)
+
+    if sFill:
+        # Get plot order
+        fa = 0.75
+        if trend:
+            fa = 0.15
+        for p in plotOrd:
+            ax.fill_between(data.index, data[p].values,
+                            color=cmap[p], alpha=fa, label='')
+            AddLegend(cmap[p], tmap[p])
+        if trend:
+            for p in plotOrd:
+                ax.plot(tf.index, tf[p].values, lw=3.0,
+                        color=cmap[p], alpha=1.0, label='')
+    elif sStack:
+        ax.stackplot(data.index, data.values.T,
+                      colors=colors, alpha=0.6, labels=labels)
+        [AddLegend(c, t) for c, t in zip(colors, labels)]
+        if trend:
+            sf = pd.DataFrame(index=tf.index)
+            sf['sum']=0
+            for p in tf:
+                sf['sum'] += tf[p]
+                ax.plot(sf['sum'].index, sf['sum'].values.T,
+                        color = cmap[p], label='')
+    elif sLine:
+        for p in plotOrd:
+            AddLegend(cmap[p], tmap[p])
+            if not trend:
+                if trendonly:
+                    ax.plot(data.index, data[p].values, '-',
+                                    color=cmap[p], alpha=st.ta, lw=st.tlw,
+                                    label='')
+                else:
+                    ax.plot(data.index, data[p].values, '-',
+                                    color=cmap[p], alpha=st.ta, lw=st.dlw,
+                                    label='')
+            else:
+                ax.plot(data.index, data[p].values, '-',
+                                color=cmap[p], alpha=st.da+.1, lw=st.dlw,
+                                label='')
+                ax.plot(tf.index, tf[p].values,
+                    color=cmap[p], alpha=st.ta, lw = st.tlw,
+                    label='')
+    else:
+        # do nothing by default since might not be wanted.
+        pass
+
+    # Annotate chart
+    ct = {4: 'High',
+          6: 'Low',
+          8: 'Mean'}  # text used in title
+    plt.title('Count of Days by\n'
+              'Daily ' + ct[column] + ' Temperature Range in '+ df.city)
+    ax.set_ylabel('Number of Days per Year')
+    ax.legend(handles=handles, loc='upper left', ncol=3, markerscale=3,
               bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
     at.Attribute(va='below', source=st.source)
 
@@ -1335,7 +1509,6 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
     at.Attribute(source=st.source)
     at.AddYAxis(ax)
     plt.show()
-
 
 def SnowPlot(df, fignum=6):
     """
@@ -1715,3 +1888,4 @@ def CompareSmoothing(df, cols=[8],
 if __name__=='__main__':
     df = WxDF()
     print(df)
+    TemperatureCountPlot(df, trendonly=True, column=6)
