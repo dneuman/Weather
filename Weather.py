@@ -907,6 +907,32 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     print('Done')
     return
 
+def RecordsRatioPlot(df):
+    """Find ratio of warm records to cold records for each year
+    """
+    cols = df.columns[[4,6]]
+    yr = 'Year'
+    # create dataframe to hold yearly count of records
+    cf = pd.DataFrame(index=np.arange(df.index[0].year, df.index[-1].year+1))
+    for cn, ct in zip(cols, ['Daytime', 'Nighttime']):
+        for t, limit, comp in zip([' Max', ' Min'],
+                         [pd.Series.max, pd.Series.min]
+                         [pd.Series.__gt__, pd.Series.__lt__]):
+            r = []  # list of record days
+            for i in range(1,366):
+                tf = df.loc[df.index==i, [yr, cn]]
+                lim = limit(tf[cn])  # final record for that day
+                while True:
+                    cr = tf.iloc[0,1]  # current record (first day)
+                    r.append([tf.index[0], tf.iloc[0,0], tf.iloc[0,1]])
+                    # end loop if reached overall record
+                    if cr == lim: break
+                    # keep days that beat current record
+                    tf = tf[comp(tf[cn], cr)]
+            rf = pd.DataFrame(r, columns=['Date', yr, cn])
+            cf[cn+t] = rf.groupby(yr).count()
+
+
 def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     """Go through all data and plot what the weather was like for each day.
 
