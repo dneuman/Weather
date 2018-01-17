@@ -823,12 +823,12 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
     props = [
-             ['Max Day', 4, 'r^', 6, float.__gt__, -100.0],
-             ['Min Day', 4, 'rv', 5, float.__lt__, 100.0],
-             ['Max Night', 6, 'b^', 4, float.__gt__, -100.0],
-             ['Min Night', 6, 'bv', 3, float.__lt__, 100.0],
-             ['Rain', 14, 'go', 2, float.__gt__, -100.0],
-             ['Snow', 16, 'cH', 1, float.__gt__, -100.0],
+             ['Max Day', 4, '^', 'red', 6, float.__gt__, -100.0],
+             ['Min Day', 4, 'v', 'orange', 5, float.__lt__, 100.0],
+             ['Max Night', 6, '^', 'c', 4, float.__gt__, -100.0],
+             ['Min Night', 6, 'v', 'b', 3, float.__lt__, 100.0],
+             ['Rain', 14, 'o', 'g', 2, float.__gt__, -100.0],
+             ['Snow', 16, 'H', 'c', 1, float.__gt__, -100.0],
              ]
     props = [props[i] for i in use]
     columns = [p[0] for p in props]
@@ -855,8 +855,8 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
         x = []
         y = []
         # choose appropriate comparison function. The 'Min' records are '<'
-        compare = p[4]
-        r[:,:] = p[5]
+        compare = p[5]
+        r[:,:] = p[6]
         for i in range(len(df.index)):
             s = df.iat[i, p[1]]
             month = df.iat[i, 1]
@@ -873,8 +873,8 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
         x = x[i:]
         y = y[i:]
         ax.plot(x, y,
-                 p[2],
-                 label=p[0], zorder=p[3])
+                 marker=p[2], color=p[3], ls='',
+                 label=p[0], zorder=p[4])
 
     # annotate axes
     ax.legend(loc='upper left', ncol=6,
@@ -1000,8 +1000,8 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
              ['Rain', '', 0, 0, 14, 'g'],
              ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
              ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
-             ['Cold', '(0–15)', 0, 15, 4, 'peru'],
-             ['Cool', '(15–23)', 15, 23, 4, 'orange'],
+             ['Cold', '(0–15)', 0, 15, 4, (0.85, 0.75, 0.25)],
+             ['Cool', '(15–23)', 15, 23, 4, (0.99, 0.5, 0.0)],
              ['Warm', '(23–30)', 23, 30, 4, 'red'],
              ['Hot', '(≥30)', 30, 100, 4, 'k']]
     props = [props[i] for i in use]
@@ -1098,8 +1098,8 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=4, style='fill',
              ['Rain', '', 0, 0, 14, 'g'],
              ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
              ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
-             ['Cold', '(0–15)', 0, 15, 4, 'peru'],
-             ['Cool', '(15–23)', 15, 23, 4, 'orange'],
+             ['Cold', '(0–15)', 0, 15, 4, (0.85, 0.75, 0.25)],
+             ['Cool', '(15–23)', 15, 23, 4, (0.99, 0.5, 0.0)],
              ['Warm', '(23–30)', 23, 30, 4, 'red'],
              ['Hot', '(≥30)', 30, 100, 4, 'k']]
     ct = {4: 'High',
@@ -1946,4 +1946,3 @@ def CompareSmoothing(df, cols=[8],
 if __name__=='__main__':
     df = WxDF()
     print(df)
-    r = RecordsRatioPlot(df)
