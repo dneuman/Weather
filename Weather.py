@@ -907,31 +907,63 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     print('Done')
     return
 
-def RecordsRatioPlot(df):
+def RecordsRatioPlot(df, fignum=5):
     """Find ratio of warm records to cold records for each year
     """
-    cols = df.columns[[4,6]]
+
+    cols = list(df.columns[[4,6]])
     yr = 'Year'
+    grp = 10  # number of years to group together
     # create dataframe to hold yearly count of records
-    cf = pd.DataFrame(index=np.arange(df.index[0].year, df.index[-1].year+1))
-    for cn, ct in zip(cols, ['Daytime', 'Nighttime']):
-        for t, limit, comp in zip([' Max', ' Min'],
-                         [pd.Series.max, pd.Series.min]
+    cf = pd.DataFrame(index=np.arange(df.index[0].year,
+                                      df.index[-1].year+1, grp))
+    for cn, ct in zip(cols, ['D', 'N']):
+        for t, limit, comp in zip(['H', 'L'],
+                         [pd.Series.max, pd.Series.min],
                          [pd.Series.__gt__, pd.Series.__lt__]):
             r = []  # list of record days
             for i in range(1,366):
-                tf = df.loc[df.index==i, [yr, cn]]
+                tf = pd.DataFrame(df.loc[df.index.dayofyear==i, [yr, cn]])
+                tf.dropna(inplace=True)
                 lim = limit(tf[cn])  # final record for that day
                 while True:
                     cr = tf.iloc[0,1]  # current record (first day)
-                    r.append([tf.index[0], tf.iloc[0,0], tf.iloc[0,1]])
+                    # add record year (1st in dataframe) with year
+                    # in groups of grp
+                    r.append([tf.index[0],
+                              np.floor(tf.iloc[0,0]/grp)*grp,
+                              tf.iloc[0,1]])
                     # end loop if reached overall record
                     if cr == lim: break
                     # keep days that beat current record
                     tf = tf[comp(tf[cn], cr)]
             rf = pd.DataFrame(r, columns=['Date', yr, cn])
-            cf[cn+t] = rf.groupby(yr).count()
+            cf[ct+t] = rf[[yr, cn]].groupby(yr).count()
+            print(ct+t)
+    cf['H'] = cf['DH'].add(cf['NH'], fill_value=0)
+    cf['L'] = cf['DL'].add(cf['NL'], fill_value=0)
+    cf['H/L'] = cf['H']/cf['L']
+    cf['DH/NL'] = cf['DH']/cf['NL']
 
+    fig = plt.figure(fignum)
+    fig.clear()
+    ax = fig.add_subplot(111)
+    xticks = list(cf.index)
+    xlabels = ["{}s".format(s) for s in xticks]
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(xlabels, rotation=45, ha='right')
+    ax.plot(cf['H/L'], 'o-', color='C0', label='',
+            lw=st.tlw, alpha=st.ta)
+    ax.set_title('Ratio of Record Highs to Lows (Day + Night)\n'
+                 'for ' + df.city + ', Grouped by Decade')
+    ax.set_ylabel('Ratio of Record Highs to Lows')
+    ax.axhline(1, ls='--', color='k', lw=1)
+    at.Attribute(ax, ha='left', va='top', source='Data: Environment Canada')
+
+    at.AddYAxis(ax)
+    plt.show()
+
+    return cf
 
 def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     """Go through all data and plot what the weather was like for each day.
@@ -969,8 +1001,8 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
              ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
              ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
              ['Cold', '(0–15)', 0, 15, 4, 'peru'],
-             ['Cool', '(15–25)', 15, 25, 4, 'orange'],
-             ['Warm', '(25–30)', 25, 30, 4, 'red'],
+             ['Cool', '(15–23)', 15, 23, 4, 'orange'],
+             ['Warm', '(23–30)', 23, 30, 4, 'red'],
              ['Hot', '(≥30)', 30, 100, 4, 'k']]
     props = [props[i] for i in use]
 
@@ -1914,4 +1946,4 @@ def CompareSmoothing(df, cols=[8],
 if __name__=='__main__':
     df = WxDF()
     print(df)
-    TemperatureCountPlot(df, trendonly=True, column=6)
+    r = RecordsRatioPlot(df)
