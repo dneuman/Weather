@@ -932,9 +932,10 @@ def RecordsRatioPlot(df, fignum=3):
                          [-1000, 1000]):
             r = []  # list of record days
             cr[:] = lim
+            print(ct+t)
             for i in range(len(df.index)):
                 d = df.index[i]
-                val = df.iloc[i, col]
+                val = df.iat[i, col]
                 if comp(val, cr[d.dayofyear]):
                     cr[d.dayofyear] = val
                     # add date, grouped year, and value to list
@@ -942,7 +943,6 @@ def RecordsRatioPlot(df, fignum=3):
             cn = df.columns[col]
             rf = pd.DataFrame(r, columns=['Date', yr, cn])
             cf[ct+t] = rf[[yr, cn]].groupby(yr).count()
-            print(ct+t)
     cf['H'] = cf['DH'].add(cf['NH'], fill_value=0)
     cf['L'] = cf['DL'].add(cf['NL'], fill_value=0)
     cf['H/L'] = cf['H']/cf['L']
@@ -1019,7 +1019,8 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=4):
 
     # make a separate frames for wet and dry days
     cn = tf.columns[4] # dry column name (Max Temp)
-    mcol = tf.columns[[0,df.tmx] + df.precips]  # main columns used
+    # get main column names (-1 is last column, i.e. 'Now')
+    mcol = tf.columns[[df.tmx] + df.precips + [-1]]
     precip = tf.columns[df.pr]
     tf.loc[np.isnan(tf[precip]), precip] = 0  # set rows without data to dry
     dryf = tf.loc[tf[precip]==0, mcol]
@@ -1035,7 +1036,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=4):
         else:
             sf = dryf.loc[dryf[cn]>=ll]
             sf = sf.loc[sf[cn]<ul]
-        ax.plot(sf.Year, sf.Now, '_', color=c, alpha=1.0, markersize=4,
+        ax.plot(sf.index.year, sf.Now, '_', color=c, alpha=1.0, markersize=4,
                 label='')
         line = mpatches.Patch(color=c, label=' '.join([name,r]))
         handles.append(line)
@@ -1117,9 +1118,9 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
 
     # make a separate frames for wet and dry days
     cn = df.columns[column] # dry column name (Max Temp)
-    precip = ['Year'] + df.precips
-    dryf = df.loc[lambda d: d[precip[3]]==0, ['Year', cn]]
-    wetf = df.loc[lambda d: d[precip[3]]>0, precip]
+    precip = list(df.columns[df.precips])
+    dryf = df.loc[df[precip[-1]]==0, [cn]]
+    wetf = df.loc[df[precip[-1]]>0, precip]
     if sStack:
         # For days with both rain and snow, zero the lesser amount. This makes
         # stack total closer to 365.
@@ -1139,11 +1140,11 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
         else:
             cn = df.columns[col]
         if col in df.precips:
-            sf = wetf.loc[wetf[cn]>0, ['Year', cn]]
+            sf = wetf.loc[wetf[cn]>0, [cn]]
         else:
-            sf = dryf.loc[dryf[cn]>=ll, ['Year',cn]]
+            sf = dryf.loc[dryf[cn]>=ll, [cn]]
             sf = sf.loc[sf[cn]<ul]
-        gr = sf.groupby('Year').count()
+        gr = sf.groupby(sf.index.year).count()
         data[name] = gr[cn]
         data.loc[np.isnan(data[name]), name] = 0
         colors.append(c)
@@ -1268,6 +1269,10 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
         Figure to use. Useful to keep multiple plots separated.
     """
     if not column: column = df.tmx  # set default
+    ct = {df.tmx: 'High',
+          df.tmn: 'Low',
+          df.tav: 'Mean'}  # text used in title
+    city = df.city
 
     fig = plt.figure(fignum)
     fig.clear()
@@ -1291,11 +1296,11 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     [tmap.update({p[0]:' '.join([p[0], p[1]])}) for p in props]
 
     cn = df.columns[column] # column name
-    df = df.loc[:, ['Year', cn]]
-    # Create empty frame for when all df data is outside a test case
-    dfmx = df[cn].max()
-    dfmn = df[cn].min()
-    dfz = pd.DataFrame(index=np.arange(df.index[0].year,
+    df = df[cn]
+    # Create empty series for when all df data is outside a test case
+    dfmx = df.max()
+    dfmn = df.min()
+    dfz = pd.Series(index=np.arange(df.index[0].year,
                                        df.index[-1].year + 1))
 
     x = list(range(df.index[0].year, df.index[-1].year+1))
@@ -1305,11 +1310,11 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     for name, r, ll, ul, c in props:
         if (ll > dfmx) or (ul < dfmn):  # handle case where no data results
             gr = dfz
-            gr[cn] = 0
+            gr[:] = 0
         else:
-            sf = df[(df[cn]>=ll) & (df[cn]<ul)]
-            gr = sf.groupby('Year').count()
-        data[name] = gr[cn]
+            sf = df[(df>=ll) & (df<ul)]
+            gr = sf.groupby(sf.index.year).count()
+        data[name] = gr
         data.loc[np.isnan(data[name]), name] = 0  # set nan to 0
         colors.append(c)
         labels.append(' '.join([name,r]))
@@ -1385,11 +1390,8 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
         pass
 
     # Annotate chart
-    ct = {df.tmx: 'High',
-          df.tmn: 'Low',
-          df.tav: 'Mean'}  # text used in title
     plt.title('Count of Days by\n'
-              'Daily ' + ct[column] + ' Temperature Range in '+ df.city)
+              'Daily ' + ct[column] + ' Temperature Range in '+ city)
     ax.set_ylabel('Number of Days per Year')
     ax.legend(handles=handles, loc='upper left', ncol=3, markerscale=3,
               bbox_to_anchor=(0, -0.04), handlelength=0.8, fontsize='small')
@@ -1422,9 +1424,9 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
     """
     import matplotlib.dates as mdates
 
-    cols = [0, df.tmx, df.tmn]
+    cols = [df.tmx, df.tmn]
     af = df.iloc[:,cols].copy()
-    yc, maxc, minc = df.columns[cols]
+    maxc, minc = df.columns[cols]
     dy = ' Day'
     tr = ' Trend'
     ny = pd.Timestamp(year=2016, month=1, day=1)
@@ -1432,12 +1434,13 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
         af[c] = sm.Smooth(df[c], 61, trend, None, follow)
     by = af.loc[af.index.dayofyear < 182]  # beginning of year
     ey = af.loc[af.index.dayofyear > 182]  # end of year
-    wby = by.groupby(yc).mean()  # just getting the proper index
+    wby = by.groupby(by.index.year).mean()  # just getting the proper index
     wey = wby.copy()
     for f, h in zip([wby, wey], [by, ey]):
         for c in [maxc, minc]:
             # get date for each year where it is just above freezing
-            f[c+dy] = h.loc[h[c]>0, [yc, c]].groupby(yc).idxmin()
+            temp = h.loc[h[c]>0, [c]]
+            f[c+dy] = temp.groupby(temp.index.year).idxmin()
             f[c+dy] = f[c+dy].apply(lambda x: x.replace(year=2016))
             a = f[c+dy].apply(lambda x: x.dayofyear)
             a = sm.Smooth(a, 21, trend, pad, follow)
@@ -1529,16 +1532,16 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=8):
         Figure to use. Useful to keep multiple plots separated.
     """
 
-    cols = [0, df.tmx, df.tmn]
+    cols = [df.tmx, df.tmn]
     af = df.iloc[:,cols].copy()
-    yc, maxc, minc = df.columns[cols]
+    maxc, minc = df.columns[cols]
     dy = ' Day'
     tr = ' Trend'
     for c in [maxc, minc]:
         af[c] = sm.Smooth(df[c], 61, trend, None, follow)
     by = af.loc[af.index.dayofyear < 182]  # beginning of year
     ey = af.loc[af.index.dayofyear > 182]  # end of year
-    wby = by.groupby(yc).mean()  # just getting the proper index
+    wby = by.groupby(by.index.year).mean()  # just getting the proper index
     wey = wby.copy()
     diff = wby.copy()
     cy=wby.copy()  # count of all days above freezing
@@ -1547,12 +1550,14 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=8):
     for c in [maxc, minc]:
         for f, h in zip([wby, wey], [by, ey]):
             # get date for each year where it is just above freezing
-            f[c+dy] = h.loc[h[c]>0, [yc, c]].groupby(yc).idxmin()
+            temp = h.loc[h[c]>0, [c]]
+            f[c+dy] = temp.groupby(temp.index.year).idxmin()
             f[c+dy] = f[c+dy].apply(lambda x: x.dayofyear)
         diff[c+dy] = wey[c+dy] - wby[c+dy]
         diff[c+tr] = sm.Smooth(diff[c+dy], 21, trend, pad, follow)
         # Collect data on total days, which might be useful later
-        cy[c+dy] = df.loc[df[c]>0, [yc, c]].groupby(yc).count()
+        temp = df.loc[df[c]>0, [c]]
+        cy[c+dy] = temp.groupby(temp.index.year).count()
         cy[c+tr] = sm.Smooth(cy[c+dy], 21, trend, pad, follow)
 
     fig = plt.figure(fignum)
@@ -1697,11 +1702,11 @@ def MonthRangePlot(df, month=None, combine=True,
     uavgc = 'uavgc'
     lavgc = 'lavgc'
     # just use year, max, min, avg temps for desired month
-    df = df.loc[df.Month==month, ['Year', maxc, minc, avgc]]
+    df = df.loc[df.index.month==month, [maxc, minc, avgc]]
     # Get rid of rows that have 'nan' values
     df.dropna(inplace=True)
 
-    gb = df.groupby('Year')
+    gb = df.groupby(df.index.year)
     sf = gb.std()
     af = gb.mean()  # mean
     mx = gb.max()  # max, highest value above mean
