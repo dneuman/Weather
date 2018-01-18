@@ -830,12 +830,12 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=2):
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
     props = [
-             ['Max Day', df.tmx, '^', 'red', 6, float.__gt__, -100.0],
-             ['Min Day', df.tmx, 'v', 'orange', 5, float.__lt__, 100.0],
-             ['Max Night', df.tmn, '^', 'c', 4, float.__gt__, -100.0],
-             ['Min Night', df.tmn, 'v', 'b', 3, float.__lt__, 100.0],
-             ['Rain', df.rn, 'o', 'g', 2, float.__gt__, -100.0],
-             ['Snow', df.sn, 'H', 'c', 1, float.__gt__, -100.0],
+             ['Max Day', df.tmx, '^', 'C0', 6, float.__gt__, -100.0],
+             ['Min Day', df.tmx, 'v', 'C3', 5, float.__lt__, 100.0],
+             ['Max Night', df.tmn, '^', 'C5', 4, float.__gt__, -100.0],
+             ['Min Night', df.tmn, 'v', 'C1', 3, float.__lt__, 100.0],
+             ['Rain', df.rn, 'o', 'C2', 2, float.__gt__, -100.0],
+             ['Snow', df.sn, 'H', 'C5', 1, float.__gt__, -100.0],
              ]
     props = [props[i] for i in use]
     columns = [p[0] for p in props]
@@ -982,6 +982,10 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=4):
         Data to plot.
     fignum : int opt default 5
         Figure to use. Useful to keep multiple plots separated.
+
+    Note
+    ----
+    Colours are determined by the stylesheet
     """
 
     fig = plt.figure(fignum)
@@ -999,14 +1003,14 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=4):
     ax.set_xlim((start-2, 2022))
 
     #     Name, Lower Limit, Upper Limit, Column, Color
-    props = [['Snow', '', 0, 0,  df.sn, 'w'],
-             ['Rain', '', 0, 0, df.rn, 'g'],
-             ['Frigid', '(< -15°C)', -100, -15, df.tmx, 'b'],
-             ['Freezing', '(-15–0)', -15, 0, df.tmx, 'c'],
-             ['Cold', '(0–15)', 0, 15, df.tmx, (0.85, 0.75, 0.25)],
-             ['Cool', '(15–23)', 15, 23, df.tmx, (0.99, 0.5, 0.0)],
-             ['Warm', '(23–30)', 23, 30, df.tmx, 'red'],
-             ['Hot', '(≥30)', 30, 100, df.tmx, 'k']]
+    props = [['Snow', '', 0, 0,  df.sn, 'C7'],
+             ['Rain', '', 0, 0, df.rn, 'C2'],
+             ['Frigid', '(< -15°C)', -100, -15, df.tmx, 'C1'],
+             ['Freezing', '(-15–0)', -15, 0, df.tmx, 'C5'],
+             ['Cold', '(0–15)', 0, 15, df.tmx, 'C4'],
+             ['Cool', '(15–23)', 15, 23, df.tmx, 'C3'],
+             ['Warm', '(23–30)', 23, 30, df.tmx, 'C0'],
+             ['Hot', '(≥30)', 30, 100, df.tmx, 'C6']]
     props = [props[i] for i in use]
 
     # Make a new dataframe starting at the desired location, and make
@@ -1087,6 +1091,10 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
         for 'ssa'.
     fignum : int opt default 5
         Figure to use. Useful to keep multiple plots separated.
+
+    Note
+    ----
+    Colours are determined by the stylesheet
     """
     if not column: column = df.tmx  # set default value
 
@@ -1099,14 +1107,14 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     elif style == 'stack': sStack = True
     else: sFill = True
     #     Name, Lower Limit, Upper Limit, Column, Color
-    props = [['Snow', '', 0, 0,  df.sn, 'white'],
-             ['Rain', '', 0, 0, df.rn, 'g'],
-             ['Frigid', '(< -15°C)', -100, -15, df.tmx, 'b'],
-             ['Freezing', '(-15–0)', -15, 0, df.tmx, 'c'],
-             ['Cold', '(0–15)', 0, 15, df.tmx, (0.85, 0.75, 0.25)],
-             ['Cool', '(15–23)', 15, 23, df.tmx, (0.99, 0.5, 0.0)],
-             ['Warm', '(23–30)', 23, 30, df.tmx, 'red'],
-             ['Hot', '(≥30)', 30, 100, df.tmx, 'k']]
+    props = [['Snow', '', 0, 0,  df.sn, 'C7'],
+             ['Rain', '', 0, 0, df.rn, 'C2'],
+             ['Frigid', '(< -15°C)', -100, -15, df.tmx, 'C1'],
+             ['Freezing', '(-15–0)', -15, 0, df.tmx, 'C5'],
+             ['Cold', '(0–15)', 0, 15, df.tmx, 'C4'],
+             ['Cool', '(15–23)', 15, 23, df.tmx, 'C3'],
+             ['Warm', '(23–30)', 23, 30, df.tmx, 'C0'],
+             ['Hot', '(≥30)', 30, 100, df.tmx, 'C6']]
     ct = {df.tmx: 'High',
           df.tmn: 'Low',
           df.tav: 'Mean'}
@@ -1283,12 +1291,12 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     elif style == 'stack': sStack = True
     else: sFill = True
     #     Name, Lower Limit, Upper Limit, Column, Color
-    props = [['Frigid', '(< -15°C)', -100, -15, 'b'],
-             ['Freezing', '(-15–0)', -15, 0, 'c'],
-             ['Cold', '(0–15)', 0, 15, 'peru'],
-             ['Cool', '(15–22)', 15, 22, 'orange'],
-             ['Warm', '(22–30)', 22, 30, 'red'],
-             ['Hot', '(≥30)', 30, 100, 'k']]
+    props = [['Frigid', '(< -15°C)', -100, -15, 'C1'],
+             ['Freezing', '(-15–0)', -15, 0, 'C5'],
+             ['Cold', '(0–15)', 0, 15, 'C4'],
+             ['Cool', '(15–22)', 15, 22, 'C3'],
+             ['Warm', '(22–30)', 22, 30, 'C0'],
+             ['Hot', '(≥30)', 30, 100, 'C6']]
     props = [props[i] for i in use]  # only include provided columns
     cmap = {}  # colour map
     tmap = {}  # text values (label and range)
