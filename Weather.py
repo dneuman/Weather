@@ -961,7 +961,7 @@ def RecordsRatioPlot(df, fignum=3):
                  'for ' + df.city + ', Grouped by Decade')
     ax.set_ylabel('Ratio of Record Highs to Lows')
     ax.axhline(1, ls='--', color='k', lw=1)
-    at.Attribute(ax, ha='left', va='top', source='Data: Environment Canada')
+    at.Attribute(ax, ha='left', va='top', source=st.source)
 
     at.AddYAxis(ax)
     plt.show()
@@ -1605,58 +1605,47 @@ def SnowPlot(df, fignum=9):
 
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
-    props = [
-             ['First', df.sn, 'cH-', 1, pd.Timestamp.__lt__],
-             ['Last', df.sn, 'co-', 2, pd.Timestamp.__gt__]
-             ]
     # Create list of daily records. Use 2016 as reference year (leap year)
-    cols = []
-    [cols.append(p[0]) for p in props]
-    r = pd.DataFrame(columns=cols,
-                     index=list(range(df.index[0].year,
-                                      df.index[-1].year+1)))
-    dStart = pd.Timestamp(dt.date(2016, 1, 1))
-    dMid = pd.Timestamp(dt.date(2016, 7, 1))
-    dEnd = pd.Timestamp(dt.date(2016, 12, 31))
-    r['First'] = dEnd
-    r['Last'] = dStart
-    fig = plt.figure(fignum, figsize=(17, 9))
+    col = df.sn
+    cn = df.columns[col]
+    df = df.loc[df[cn]>0]  # get days with snow
+    # put day of year with snow
+    af = pd.Series(data=df.index.dayofyear, index=df.index)
+    dy = ' Day'
+    tr = ' Trend'
+    ny = pd.Timestamp('2016-01-01')  # start of year
+    fig = plt.figure(fignum)
     fig.clear()
-    for p in props:
-        col = p[0]
-        print(col)
-        compare = p[4]  # which comparison function to use
-        for i, date in enumerate(df.index):
-            s = df.iat[i, p[1]]
-            if s == 0:  # only worry about dates with precipitation
-                continue
-            # put date into 2016 for plotting purposes
-            pdate = pd.Timestamp(dt.date(2016, date.month, date.day))
-            if compare(pdate, dMid):  # skip if wrong part of year
-                continue
-            yr = date.year
-            if compare(pdate, pd.Timestamp(r.loc[yr, col])):
-                r.loc[yr, col] = pdate
-        plt.plot(list(r.index),
-                 list(r[col]),
-                 p[2],
-                 linewidth=st.tlw,
-                 alpha=st.ta,
-                 label=col)
-        # Convert dates to day of year, get moving average, convert back
-        # to actual date, then plot
-        s = pd.Series(index=r.index,
-                      data=[float(d.dayofyear) for d in r[col]])
-        a = sm.WeightedMovingAverage(s, 15)
-        for i in a.index:
-            a[i] = dStart + pd.Timedelta(days=int(a[i] - 0.5))
-        plt.plot(a, 'c-', linewidth=4)
+    ax = fig.add_subplot(111)
+    # af, by, ey are series, not dataframes
+    by = af[af < 182]  # beginning of year
+    ey = af[af > 182]  # end of year
+    # create a dataframe to put series into
+    wby = pd.DataFrame(index=list(range(df.index[0].year,
+                                        df.index[-1].year+1)))
+    wey = wby.copy()
+    for f, h in zip([wby, wey], [by, ey]):
+        # get latest or earliest date for each year where it snowed
+        gr = h.groupby(h.index.year)
+        if h is by:
+            f[cn+dy] = gr.idxmax()
+        else:
+            f[cn+dy] = gr.idxmin()
+        f[cn+dy] = f[cn+dy].apply(lambda x: x.replace(year=2016))
+        a = f[cn+dy].apply(lambda x: x.dayofyear)
+        a = sm.Smooth(a, 15)
+        f[cn+tr] = a.apply(lambda x: ny + pd.to_timedelta(x-1, unit='d'))
+        ax.plot(f[cn+dy], 'o-', color='C5',
+                 linewidth=st.dlw,
+                 alpha=st.ta)
+        plt.plot(f[cn+tr], '-', linewidth=st.tlw, color='C1')
+
     plt.title('First and Last Snowfall for ' + df.city)
-    plt.legend(numpoints=1,
-               loc='center left')
-    plt.axis([1940, 2020, '20160101', '20161231'])
+    plt.axis([1885, 2020, '20161231', '20160101'])
+    at.Attribute(ax, ha='left', va='top', source=st.source)
+    at.MonthFmt(ax)
+    at.AddYAxis(ax, month=True)
     plt.show()
-    print('Done')
     return
 
 def MonthRangePlot(df, month=None, combine=True,
