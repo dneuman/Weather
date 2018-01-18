@@ -126,6 +126,13 @@ class WxDF(pd.DataFrame):
 
     Typing `wf` by itself in iPython will print a summary of the data.
     """
+    # Specify column locations here. These should be used by routines
+    # The column names can be determined by the df.columns list
+    temps = [4, 6, 8]  # max, min, average temps
+    precips = [14, 16, 18]  # rain, snow, precipitation
+    (tmx, tmn, tav) = temps
+    (rn, sn, pr) = precips
+
     _nonHeadRows = 25
     _dataTypes = { #0: np.datetime64,  # "Date/Time" (not used as it is index)
              1: int,      # "Year"
@@ -715,7 +722,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
 
     # set up defaults. If first supplied columns is temperature, make
     # defaults temperature, otherwise precipitation.
-    if len(allcols)==0 or (allcols[0] in [4,6,8]):
+    if len(allcols)==0 or (allcols[0] in df.temps):
         unitstr = ' (°C)'
         typestr = 'Temperature'
         ratestr = '{:.2f}°C/decade'
@@ -728,7 +735,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
         typestr = 'Precipitation'
         ratestr = '{:.1f}/decade'
         if not func: func = np.sum
-        if not rawcols: rawcols = [18]  # total precipitation
+        if not rawcols: rawcols = [df.pr]  # total precipitation
         if not trendcols: trendcols = rawcols
         if not ratecols: ratecols = trendcols
     allcols = list(set().union(set(rawcols), set(trendcols), set(ratecols)))
@@ -796,7 +803,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
     fig.show()
     return
 
-def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
+def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=2):
     """Plot all records in daily data.
 
     Parameters
@@ -823,12 +830,12 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
     props = [
-             ['Max Day', 4, '^', 'red', 6, float.__gt__, -100.0],
-             ['Min Day', 4, 'v', 'orange', 5, float.__lt__, 100.0],
-             ['Max Night', 6, '^', 'c', 4, float.__gt__, -100.0],
-             ['Min Night', 6, 'v', 'b', 3, float.__lt__, 100.0],
-             ['Rain', 14, 'o', 'g', 2, float.__gt__, -100.0],
-             ['Snow', 16, 'H', 'c', 1, float.__gt__, -100.0],
+             ['Max Day', df.tmx, '^', 'red', 6, float.__gt__, -100.0],
+             ['Min Day', df.tmx, 'v', 'orange', 5, float.__lt__, 100.0],
+             ['Max Night', df.tmn, '^', 'c', 4, float.__gt__, -100.0],
+             ['Min Night', df.tmn, 'v', 'b', 3, float.__lt__, 100.0],
+             ['Rain', df.rn, 'o', 'g', 2, float.__gt__, -100.0],
+             ['Snow', df.sn, 'H', 'c', 1, float.__gt__, -100.0],
              ]
     props = [props[i] for i in use]
     columns = [p[0] for p in props]
@@ -907,7 +914,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=4):
     print('Done')
     return
 
-def RecordsRatioPlot(df, fignum=5):
+def RecordsRatioPlot(df, fignum=3):
     """Find ratio of warm records to cold records for each year
     """
 
@@ -919,7 +926,7 @@ def RecordsRatioPlot(df, fignum=5):
     # will look up records by day of year (1-indexed)
     cr = np.zeros(367, dtype=float)
 
-    for col, ct in zip([4, 6], ['D', 'N']):
+    for col, ct in zip(df.temps[:2], ['D', 'N']):
         for t, comp, lim in zip(['H', 'L'],
                          [float.__gt__, float.__lt__],
                          [-1000, 1000]):
@@ -961,7 +968,7 @@ def RecordsRatioPlot(df, fignum=5):
 
     return cf
 
-def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
+def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=4):
     """Go through all data and plot what the weather was like for each day.
 
     Parameters
@@ -992,14 +999,14 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     ax.set_xlim((start-2, 2022))
 
     #     Name, Lower Limit, Upper Limit, Column, Color
-    props = [['Snow', '', 0, 0,  16, 'w'],
-             ['Rain', '', 0, 0, 14, 'g'],
-             ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
-             ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
-             ['Cold', '(0–15)', 0, 15, 4, (0.85, 0.75, 0.25)],
-             ['Cool', '(15–23)', 15, 23, 4, (0.99, 0.5, 0.0)],
-             ['Warm', '(23–30)', 23, 30, 4, 'red'],
-             ['Hot', '(≥30)', 30, 100, 4, 'k']]
+    props = [['Snow', '', 0, 0,  df.sn, 'w'],
+             ['Rain', '', 0, 0, df.rn, 'g'],
+             ['Frigid', '(< -15°C)', -100, -15, df.tmx, 'b'],
+             ['Freezing', '(-15–0)', -15, 0, df.tmx, 'c'],
+             ['Cold', '(0–15)', 0, 15, df.tmx, (0.85, 0.75, 0.25)],
+             ['Cool', '(15–23)', 15, 23, df.tmx, (0.99, 0.5, 0.0)],
+             ['Warm', '(23–30)', 23, 30, df.tmx, 'red'],
+             ['Hot', '(≥30)', 30, 100, df.tmx, 'k']]
     props = [props[i] for i in use]
 
     # Make a new dataframe starting at the desired location, and make
@@ -1012,8 +1019,8 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
 
     # make a separate frames for wet and dry days
     cn = tf.columns[4] # dry column name (Max Temp)
-    mcol = tf.columns[[0,4,14,16,18, -1]]  # main columns used
-    precip = tf.columns[18]
+    mcol = tf.columns[[0,df.tmx] + df.precips]  # main columns used
+    precip = tf.columns[df.pr]
     tf.loc[np.isnan(tf[precip]), precip] = 0  # set rows without data to dry
     dryf = tf.loc[tf[precip]==0, mcol]
     wetf = tf.loc[tf[precip]>0, mcol]
@@ -1023,7 +1030,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     handles = []  # create legend manually
     for name, r, ll, ul, col, c in props:
         cn = tf.columns[col]
-        if col in [14, 16]:
+        if col in df.precips:
             sf = wetf.loc[wetf[cn]>0]
         else:
             sf = dryf.loc[dryf[cn]>=ll]
@@ -1046,7 +1053,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=5):
     plt.show()
     return
 
-def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=4, style='fill',
+def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
                  trend=None, trendonly=False, size=21, follow=1, pad='linear',
                  fignum=5):
     """Go through all data and plot what the weather was like for each day.
@@ -1080,6 +1087,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=4, style='fill',
     fignum : int opt default 5
         Figure to use. Useful to keep multiple plots separated.
     """
+    if not column: column = df.tmx  # set default value
 
     fig = plt.figure(fignum)
     fig.clear()
@@ -1090,17 +1098,17 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=4, style='fill',
     elif style == 'stack': sStack = True
     else: sFill = True
     #     Name, Lower Limit, Upper Limit, Column, Color
-    props = [['Snow', '', 0, 0,  16, 'white'],
-             ['Rain', '', 0, 0, 14, 'g'],
-             ['Frigid', '(< -15°C)', -100, -15, 4, 'b'],
-             ['Freezing', '(-15–0)', -15, 0, 4, 'c'],
-             ['Cold', '(0–15)', 0, 15, 4, (0.85, 0.75, 0.25)],
-             ['Cool', '(15–23)', 15, 23, 4, (0.99, 0.5, 0.0)],
-             ['Warm', '(23–30)', 23, 30, 4, 'red'],
-             ['Hot', '(≥30)', 30, 100, 4, 'k']]
-    ct = {4: 'High',
-          6: 'Low',
-          8: 'Mean'}
+    props = [['Snow', '', 0, 0,  df.sn, 'white'],
+             ['Rain', '', 0, 0, df.rn, 'g'],
+             ['Frigid', '(< -15°C)', -100, -15, df.tmx, 'b'],
+             ['Freezing', '(-15–0)', -15, 0, df.tmx, 'c'],
+             ['Cold', '(0–15)', 0, 15, df.tmx, (0.85, 0.75, 0.25)],
+             ['Cool', '(15–23)', 15, 23, df.tmx, (0.99, 0.5, 0.0)],
+             ['Warm', '(23–30)', 23, 30, df.tmx, 'red'],
+             ['Hot', '(≥30)', 30, 100, df.tmx, 'k']]
+    ct = {df.tmx: 'High',
+          df.tmn: 'Low',
+          df.tav: 'Mean'}
     props = [props[i] for i in use]
     cmap = {}  # colour map
     tmap = {}  # text values (label and range)
@@ -1109,14 +1117,14 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=4, style='fill',
 
     # make a separate frames for wet and dry days
     cn = df.columns[column] # dry column name (Max Temp)
-    precip = df.columns[[0,14,16,18]]
+    precip = ['Year'] + df.precips
     dryf = df.loc[lambda d: d[precip[3]]==0, ['Year', cn]]
     wetf = df.loc[lambda d: d[precip[3]]>0, precip]
     if sStack:
         # For days with both rain and snow, zero the lesser amount. This makes
         # stack total closer to 365.
-        rain = df.columns[14]
-        snow = df.columns[16]
+        rain = df.columns[df.rn]
+        snow = df.columns[df.sn]
         wetf.loc[wetf[rain]>=wetf[snow], snow] = 0
         wetf.loc[wetf[rain]< wetf[snow], rain] = 0
 
@@ -1125,11 +1133,12 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=4, style='fill',
     colors = []
     labels = []
     for name, r, ll, ul, col, c in props:
-        if col == 4:
+        if col == df.tmx:
+            # use provided column, not the column in props
             cn = df.columns[column]
         else:
             cn = df.columns[col]
-        if col in [14, 16]:
+        if col in df.precips:
             sf = wetf.loc[wetf[cn]>0, ['Year', cn]]
         else:
             sf = dryf.loc[dryf[cn]>=ll, ['Year',cn]]
@@ -1224,9 +1233,9 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=4, style='fill',
     ax2.set_ylabel('Percent of Year')
     fig.show()
 
-def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=4, style='fill',
+def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
                  trend=None, trendonly=False, size=21, follow=1, pad='linear',
-                 fignum=5):
+                 fignum=6):
     """Count the days in each temperature range. Plot in various formats.
 
     Parameters
@@ -1258,6 +1267,8 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=4, style='fill',
     fignum : int opt default 5
         Figure to use. Useful to keep multiple plots separated.
     """
+    if not column: column = df.tmx  # set default
+
     fig = plt.figure(fignum)
     fig.clear()
     ax = fig.add_subplot(111)
@@ -1374,9 +1385,9 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=4, style='fill',
         pass
 
     # Annotate chart
-    ct = {4: 'High',
-          6: 'Low',
-          8: 'Mean'}  # text used in title
+    ct = {df.tmx: 'High',
+          df.tmn: 'Low',
+          df.tav: 'Mean'}  # text used in title
     plt.title('Count of Days by\n'
               'Daily ' + ct[column] + ' Temperature Range in '+ df.city)
     ax.set_ylabel('Number of Days per Year')
@@ -1389,7 +1400,7 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=4, style='fill',
     ax2.set_ylabel('Percent of Year')
     fig.show()
 
-def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
+def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
     """
     Plot the length of the warm season over time.
 
@@ -1411,8 +1422,9 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
     """
     import matplotlib.dates as mdates
 
-    af = df.iloc[:,[0,4,6]].copy()
-    yc, maxc, minc = df.columns[[0,4,6]]
+    cols = [0, df.tmx, df.tmn]
+    af = df.iloc[:,cols].copy()
+    yc, maxc, minc = df.columns[cols]
     dy = ' Day'
     tr = ' Trend'
     ny = pd.Timestamp(year=2016, month=1, day=1)
@@ -1496,7 +1508,7 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=6):
 
     plt.show()
 
-def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
+def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=8):
     """
     Plot the length of the warm season over time.
 
@@ -1517,8 +1529,9 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
         Figure to use. Useful to keep multiple plots separated.
     """
 
-    af = df.iloc[:,[0,4,6]].copy()
-    yc, maxc, minc = df.columns[[0,4,6]]
+    cols = [0, df.tmx, df.tmn]
+    af = df.iloc[:,cols].copy()
+    yc, maxc, minc = df.columns[cols]
     dy = ' Day'
     tr = ' Trend'
     for c in [maxc, minc]:
@@ -1564,7 +1577,7 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
     at.AddYAxis(ax)
     plt.show()
 
-def SnowPlot(df, fignum=6):
+def SnowPlot(df, fignum=9):
     """
     Go through all data and plot first and last day of snow for the year.
 
@@ -1580,8 +1593,8 @@ def SnowPlot(df, fignum=6):
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
     props = [
-             ['First', 16, 'cH-', 1, pd.Timestamp.__lt__],
-             ['Last', 16, 'co-', 2, pd.Timestamp.__gt__]
+             ['First', df.sn, 'cH-', 1, pd.Timestamp.__lt__],
+             ['Last', df.sn, 'co-', 2, pd.Timestamp.__gt__]
              ]
     # Create list of daily records. Use 2016 as reference year (leap year)
     cols = []
@@ -1634,7 +1647,7 @@ def SnowPlot(df, fignum=6):
     return
 
 def MonthRangePlot(df, month=None, combine=True,
-                   trend='wma', pad='linear', follow=1, fignum=8):
+                   trend='wma', pad='linear', follow=1, fignum=10):
     """Get expected high and low temperature ranges for the supplied month.
 
     Parameters
@@ -1674,9 +1687,9 @@ def MonthRangePlot(df, month=None, combine=True,
 
     if month is None or month==0 or month>12:
         month = dt.date.today().month
-    maxc = df.columns[4] # max:0/4, min:1/6, avg:2/8
-    minc = df.columns[6]
-    avgc = df.columns[8]
+    maxc = df.columns[df.tmx] # max:0/4, min:1/6, avg:2/8
+    minc = df.columns[df.tmn]
+    avgc = df.columns[df.tav]
     umaxc = 'umaxc'
     lmaxc = 'lmaxc'
     uminc = 'uminc'
