@@ -911,32 +911,28 @@ def RecordsRatioPlot(df, fignum=5):
     """Find ratio of warm records to cold records for each year
     """
 
-    cols = list(df.columns[[4,6]])
-    yr = 'Year'
     grp = 10  # number of years to group together
+    yr = 'Year'
     # create dataframe to hold yearly count of records
     cf = pd.DataFrame(index=np.arange(df.index[0].year,
                                       df.index[-1].year+1, grp))
-    for cn, ct in zip(cols, ['D', 'N']):
-        for t, limit, comp in zip(['H', 'L'],
-                         [pd.Series.max, pd.Series.min],
-                         [pd.Series.__gt__, pd.Series.__lt__]):
+    # will look up records by day of year (1-indexed)
+    cr = np.zeros(367, dtype=float)
+
+    for col, ct in zip([4, 6], ['D', 'N']):
+        for t, comp, lim in zip(['H', 'L'],
+                         [float.__gt__, float.__lt__],
+                         [-1000, 1000]):
             r = []  # list of record days
-            for i in range(1,366):
-                tf = pd.DataFrame(df.loc[df.index.dayofyear==i, [yr, cn]])
-                tf.dropna(inplace=True)
-                lim = limit(tf[cn])  # final record for that day
-                while True:
-                    cr = tf.iloc[0,1]  # current record (first day)
-                    # add record year (1st in dataframe) with year
-                    # in groups of grp
-                    r.append([tf.index[0],
-                              np.floor(tf.iloc[0,0]/grp)*grp,
-                              tf.iloc[0,1]])
-                    # end loop if reached overall record
-                    if cr == lim: break
-                    # keep days that beat current record
-                    tf = tf[comp(tf[cn], cr)]
+            cr[:] = lim
+            for i in range(len(df.index)):
+                d = df.index[i]
+                val = df.iloc[i, col]
+                if comp(val, cr[d.dayofyear]):
+                    cr[d.dayofyear] = val
+                    # add date, grouped year, and value to list
+                    r.append([d, np.floor(d.year/grp)*grp, val])
+            cn = df.columns[col]
             rf = pd.DataFrame(r, columns=['Date', yr, cn])
             cf[ct+t] = rf[[yr, cn]].groupby(yr).count()
             print(ct+t)
