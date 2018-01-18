@@ -727,7 +727,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
         typestr = 'Temperature'
         ratestr = '{:.2f}°C/decade'
         if not func: func = np.mean
-        if not rawcols: rawcols = [8]
+        if not rawcols: rawcols = [df.tav]
         if not trendcols: trendcols = rawcols
         if not ratecols: ratecols = trendcols
     else:
