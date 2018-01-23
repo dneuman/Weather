@@ -1410,7 +1410,8 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     ax2.set_ylabel('Percent of Year')
     fig.show()
 
-def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
+def WarmPlot(df, high=0, low=0,
+             trend='wma', pad='linear', follow=1, fignum=7):
     """
     Plot the length of the warm season over time.
 
@@ -1419,6 +1420,10 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
     df : WxDF
         object containing daily data for a location. Can use a
         pandas.DataFrame if df.city comtains the name of the city.
+    high : float default 0
+        Crossover temperature for the daily high.
+    low : float default 0
+        Crossover temperature for the daily low. Set to None to remove it.
     trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
         Which algorithm to use. Defaults fo 'wma' if input is not recognized.
     pad : str ['linear' | 'mirror' | None] default 'linear'
@@ -1445,9 +1450,10 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
     wby = by.groupby(by.index.year).mean()  # just getting the proper index
     wey = wby.copy()
     for f, h in zip([wby, wey], [by, ey]):
-        for c in [maxc, minc]:
+        for c, lim in zip([maxc, minc], [high, low]):
             # get date for each year where it is just above freezing
-            temp = h.loc[h[c]>0, [c]]
+            if not lim: continue
+            temp = h.loc[h[c]>lim, [c]]
             f[c+dy] = temp.groupby(temp.index.year).idxmin()
             f[c+dy] = f[c+dy].apply(lambda x: x.replace(year=2016))
             a = f[c+dy].apply(lambda x: x.dayofyear)
@@ -1463,7 +1469,7 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
 
     fig = plt.figure(fignum)
     fig.clear()
-    title = "Period of Above Freezing Temperatures for " + df.city
+    title = "Average Daily Temperatures Crossing Threshold for " + df.city
     fig.suptitle(title)
     fig.subplots_adjust(hspace=0.01, wspace=0.1,
                         left=0.08, right=0.92,
@@ -1482,8 +1488,17 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
     # Set Y Label positions and formats
     for ax, f, mxc, mnc in zip([ax0, ax1], [wby, wey],
                                [maxc, minc], [minc, maxc]):
-        ax.set_ylim(f[mxc+dy].min(), f[mnc+dy].max())
-        # locators must be declared separately for each plot
+        # find max and min value for each axes
+        mx = pd.Timestamp('2016-01-01')
+        mn = pd.Timestamp('2016-12-31')
+        cols = f.columns
+        for c in [mxc+dy, mnc+dy]:
+            if c not in cols: continue
+            mx = max(mx, f[c].max())
+            mn = min(mn, f[c].min())
+        ax.set_ylim(mn, mx)
+        # locators must be declared separately for each axes but
+        # the format can be reused.
         ax.yaxis.set_major_locator(mdates.DayLocator(range(5,32,5)))
         ax.yaxis.set_minor_locator(mdates.DayLocator())
         ax.yaxis.set_major_formatter(majorFmt)
@@ -1491,15 +1506,20 @@ def WarmPlot(df, trend='wma', pad='linear', follow=1, fignum=7):
         ax.set_xticks(xticks)
         ax.set_xlim(xlim[0], xlim[1])
     for ax, f in zip([ax0, ax1], [wby, wey]):
-        for c, co in zip([maxc, minc], ['C0', 'C1']):
+        for c, co, lim in zip([maxc, minc], ['C0', 'C1'], [high, low]):
+            if not lim: continue
             ax.plot(f[c+tr], co+'-', lw=st.tlw, alpha=st.ta)
             ax.plot(f[c+dy], co+'o-', lw=st.dlw, alpha=st.da)
 
     # Create legend entries manually
     handles = []
-    for c, t in zip(['C0', 'C1'], ['Daily High', 'Daily Low']):
+    for c, t, lim in zip(['C0', 'C1'],
+                         ['Daily High', 'Daily Low'],
+                         [high, low]):
+        if not lim: continue
         line = mlines.Line2D([], [], color=c,
-                             alpha=1.0, lw=st.tlw, label=t+' Crossover')
+                             alpha=1.0, lw=st.tlw,
+                             label=(t+' Crossing {:.1f} °C').format(lim))
         handles.append(line)
     plt.legend(handles=handles, loc=2)
     at.Attribute(ax=ax0, source=st.source)
