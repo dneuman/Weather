@@ -132,6 +132,7 @@ class WxDF(pd.DataFrame):
     precips = [14, 16, 18]  # rain, snow, precipitation
     (tmx, tmn, tav) = temps
     (rn, sn, pr) = precips
+    qual = 3  # data quality column
 
     _nonHeadRows = 25
     _dataTypes = { #0: np.datetime64,  # "Date/Time" (not used as it is index)
@@ -241,10 +242,11 @@ class WxDF(pd.DataFrame):
     def __str__(self):
         """Return a formatted summary of the data
         """
-        hMap = {'Data Quality':'Qual', 'Max Temp (°C)':'Tmax',
-                'Min Temp (°C)':'Tmin', 'Mean Temp (°C)':'Tavg',
-                'Total Rain (mm)': 'Rain', 'Total Snow (cm)': 'Snow',
-                'Total Precip (mm)':'Prec'}
+        labels = ['Qual', 'Tmax', 'Tmin', 'Tavg', 'Rain', 'Snow', 'Prec']
+        cols = [self.qual, self.tmx, self.tmn,
+                self.tav, self.rn, self.sn, self.pr]
+        # make map of column name to short label
+        hMap = dict(zip(self.columns[cols], labels))
         mincw = 7  # minimum column width
 
         def GetLine(r):
@@ -263,12 +265,14 @@ class WxDF(pd.DataFrame):
                     st = st + str(self[c].iloc[r]).rjust(num)
             return st
 
+        # Set up the headings to use. The period attribute will determine
+        # what to use. If period does not exist, just show first 4 columns.
         hdgs = '    Undefined'
         if not hasattr(self, 'period'):
-            num = min(3, len(self.columns))
+            num = min(4, len(self.columns))
             lbl = list(self.columns[0:num])
             hdgs = [l.rjust(max(mincw,len(l))) for l in lbl]
-        elif self.period == 'daily' or len(self.columns)==26:
+        elif self.period == 'daily':
             full = list(hMap.keys())
             avail = list(self.columns)
             lbl = []
@@ -278,26 +282,36 @@ class WxDF(pd.DataFrame):
             hdgs = [hMap[h] for h in lbl]
             hdgs = [h.rjust(max(mincw,len(h))) for h in hdgs]
         elif self.period == 'monthly':
-            cols = [0, 5, 11]
+            cols = [0, 4, 8, 11] # months to show
             lbl = list(self.columns[cols])
             hdgs = [l.rjust(max(mincw,len(l))) for l in lbl]
         elif self.period == 'annual':
             lbl = list(self.columns)
             hdgs = [l.rjust(max(mincw,len(l))) for l in lbl]
-        last = self.GetLastDay()
         first = self.GetFirstDay()
+        last = self.GetLastDay()
+        # create heading
         s = ''
         if hasattr(self, 'city') and self.city is not None:
             s = "City: {0}  Type: {1}\n".format(self.city, self.type)
         s = s + "Date      " + "".join(hdgs)
+        # add beginning lines
         if first > 0:
-            s = '\n'.join([s, GetLine(0), '...', GetLine(first-1)])
-        for i in range(first, first+5):
-            s = '\n'.join([s, GetLine(i)])
-        s = '\n'.join([s,'...'])
-        num = min(len(self.index), last+2)
-        for i in range(last-9, num):
-            s = '\n'.join([s, GetLine(i)])
+            s = '\n'.join([s, GetLine(0)])
+        if first > 2:
+            s = '\n'.join([s, '...'])
+        if first > 1:
+            s = '\n'.join([s, GetLine(first-1)])
+        if (last-first)<32:
+            for i in range(first, last+1):
+                s = '\n'.join([s, GetLine(i)])
+        else:
+            for i in range(first, first+5):
+                s = '\n'.join([s, GetLine(i)])
+            s = '\n'.join([s,'...'])
+            num = min(len(self.index), last+2)
+            for i in range(last-9, num):
+                s = '\n'.join([s, GetLine(i)])
         s = '\n'.join([s, '[{}r x {}c]'.format(len(self.index),
                                                len(self.columns))])
         if hasattr(self, 'city'):
