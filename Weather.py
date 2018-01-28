@@ -1682,6 +1682,66 @@ def SnowPlot(df, fignum=9):
     plt.show()
     return
 
+def StormPlot(df, cols=None, lim = 10, size=21,
+              trend='wma', pad='linear', follow=1, fignum=10):
+    """Plot average precipitation for top days of each year
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        daily data contained in a pandas DataFrame
+    cols : list of int [df.rn | df.sn | df.pr] default [df.rn, df.sn]
+        precipitation column to use (rain, snow, all)
+    lim : float default 10
+        percentage of annual values to use for calculation
+    size : int default 21
+        Size of the moving average window. Larger values give smoother
+        results.
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which smoothing algorithm to use.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        What kind of padding to use on the trend line
+    follow : int default 1
+        Determines how closely to follow the data. Only used for
+        'lowess' (determines the polynomial to use) and 'ssa' (determines
+        how many reconstructed principles to use).
+     fignum : int default 8
+        Figure number to use. Override if you want to see more than one plot
+        at a time.
+    """
+    if not cols: cols = [df.rn, df.sn]
+    frac = lim/100
+    tmap = dict(zip(df.precips, ['Rain', 'Snow', 'Precipitation']))
+    tunit = dict(zip(df.precips, ['mm', 'cm', 'mm']))
+    fig = plt.figure(fignum)
+    fig.clear()
+    ax = fig.add_subplot(111)
+    for col in cols:
+        cn = df.columns[col]
+        ps = pd.Series(index=list(range(df.index[0].year,
+                                           df.index[-1].year+1)))
+        rs = df.loc[df[cn]>0, cn].copy()
+        gs = rs.groupby(rs.index.year)
+        for yr, ys in gs:
+            num = int(len(ys) * frac + 0.5)
+            ps[yr] = ys.nlargest(num).mean()
+        ts = sm.Smooth(ps, size, trend, pad, follow)
+
+        ax.plot(ps, lw=st.dlw, color=st.colors[col])
+        ax.plot(ts, lw=st.tlw, color=st.colors[col],
+                label=tmap[col]+' ('+tunit[col]+')')
+        at.AddRate(ts.loc[1970:], ax=ax,
+                   label='{:.2} '+tunit[col]+'/decade')
+
+    plt.legend()
+    ax.set_title('Average Precipitation of Top {0}% '
+                 'of Storms Per Year in {1}'.format(lim, df.city))
+    ax.set_ylabel('Precipitation (mm/cm per day)')
+    at.Attribute(ax, ha='left', va='bottom', source=st.source)
+    at.AddYAxis(ax)
+    fig.show()
+
+
 def MonthRangePlot(df, month=None, combine=True,
                    trend='wma', pad='linear', follow=1, fignum=10):
     """Get expected high and low temperature ranges for the supplied month.
