@@ -243,10 +243,13 @@ class WxDF(pd.DataFrame):
         """Return a formatted summary of the data
         """
         labels = ['Qual', 'Tmax', 'Tmin', 'Tavg', 'Rain', 'Snow', 'Prec']
+        names = ['Data Quality', 'Max Temp (°C)', 'Min Temp (°C)',
+               'Mean Temp (°C)', 'Total Rain (mm)', 'Total Snow (cm)',
+               'Total Precip (mm)']
         cols = [self.qual, self.tmx, self.tmn,
                 self.tav, self.rn, self.sn, self.pr]
         # make map of column name to short label
-        hMap = dict(zip(self.columns[cols], labels))
+        hMap = dict(zip(names, labels))
         mincw = 7  # minimum column width
 
         def GetLine(r):
