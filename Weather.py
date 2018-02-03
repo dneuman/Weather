@@ -1685,7 +1685,7 @@ def SnowPlot(df, fignum=9):
     plt.show()
     return
 
-def StormPlot(df, cols=None, lim = 10, size=21,
+def TopPrecipPlot(df, cols=None, lim = 10, size=21,
               trend='wma', pad='linear', follow=1, fignum=10):
     """Plot average precipitation for top days of each year
 
@@ -1740,6 +1740,89 @@ def StormPlot(df, cols=None, lim = 10, size=21,
     ax.set_title('Average Precipitation of Top {0}% '
                  'of Storms Per Year in {1}'.format(lim, df.city))
     ax.set_ylabel('Precipitation (mm/cm per day)')
+    at.Attribute(ax, ha='left', va='bottom', source=st.source)
+    at.AddYAxis(ax)
+    fig.show()
+
+def StormPlot(df, cols=None, lim = 10, size=21,
+              trend='wma', pad='linear', follow=1, fignum=10):
+    """Plot average total precipitation for top storms (consecutive days of
+       precipitation) of each year.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        daily data contained in a pandas DataFrame
+    cols : list of int [df.rn | df.sn | df.pr] default [df.rn, df.sn]
+        precipitation column to use (rain, snow, all)
+    lim : float default 10
+        percentage of annual values to use for calculation
+    size : int default 21
+        Size of the moving average window. Larger values give smoother
+        results.
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which smoothing algorithm to use.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        What kind of padding to use on the trend line
+    follow : int default 1
+        Determines how closely to follow the data. Only used for
+        'lowess' (determines the polynomial to use) and 'ssa' (determines
+        how many reconstructed principles to use).
+     fignum : int default 8
+        Figure number to use. Override if you want to see more than one plot
+        at a time.
+    """
+    if not cols: cols = [df.rn, df.sn]  # default values
+
+    fig = plt.figure(fignum)
+    fig.clear()
+    ax = fig.add_subplot(111)
+
+    frac = lim/100
+    tmap = dict(zip(df.precips, ['Rain', 'Snow', 'Precipitation']))
+    tunit = dict(zip(df.precips, ['mm', 'cm', 'mm']))
+    ps = pd.Series(index=list(range(df.index[0].year,
+                                    df.index[-1].year+1)))
+    for col in cols:
+        # Extract the required column. Use [col] instead of just col to force
+        # a dataframe instead of a series.
+        tf = df.iloc[:,[col]].copy()
+        cn = df.columns[col]  # column name
+        # Create a new column that has True where there was no precipiation
+        # and False when there was. These will be treated as 1/0 later.
+        tf['sun'] = tf[cn].apply(lambda x: x==0)
+        # Create a new column that has the cumulative sum of the 'sun' column.
+        # What happens is that this value remains constant when there was
+        # precipitation, but increases when there wasn't. This allows grouping
+        # by consecutive precipitation days, since they will have the same
+        # 'c' value.
+        tf['c'] = tf['sun'].cumsum()
+        # Create a new frame grouped by the year and the 'c' value, and
+        # summed together.
+        storms = tf.groupby([tf.index.year, 'c']).sum()
+        # Remove the days that didn't have any precipitation
+        storms = storms[storms[cn]>0]
+        # Now just group by year (the first level index)
+        gr = storms.groupby(level=0)
+        # Go through each year, find the desired fraction of values,
+        # then take the mean of the top number of values. Insert this result
+        # into the precipitation series by year.
+        for yr, yf in gr:
+            num = int(yf[cn].count() * frac + 0.5)
+            ps[yr] = yf[cn].nlargest(num).mean()
+        # Get the smoothed data, and plot the results.
+        ts = sm.Smooth(ps, size, trend, pad, follow)
+
+        ax.plot(ps, lw=st.dlw, color=st.colors[col])
+        ax.plot(ts, lw=st.tlw, color=st.colors[col],
+                label=tmap[col]+' ('+tunit[col]+')')
+        at.AddRate(ts.loc[1970:], ax=ax,
+                   label='{:.2} '+tunit[col]+'/decade')
+
+    plt.legend()
+    ax.set_title('Average Total Precipitation of Top {0}% '
+                 'of Storms Per Year in {1}'.format(lim, df.city))
+    ax.set_ylabel('Precipitation (mm/cm per storm)')
     at.Attribute(ax, ha='left', va='bottom', source=st.source)
     at.AddYAxis(ax)
     fig.show()
