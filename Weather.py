@@ -1145,7 +1145,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     cn = df.columns[column] # dry column name (Max Temp)
     precip = list(df.columns[df.precips])
     dryf = df.loc[df[precip[-1]]==0, [cn]]
-    wetf = df.loc[df[precip[-1]]>0, precip]
+    wetf = df.loc[df[precip[-1]]>0, [precip]]
     if sStack:
         # For days with both rain and snow, zero the lesser amount. This makes
         # stack total closer to 365.
@@ -1258,6 +1258,49 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     ax2, pad = at.AddYAxis(ax, percent=365)
     ax2.set_ylabel('Percent of Year')
     fig.show()
+
+def DayThreshPlot(df, cols=None, thresh=0.0, above=True,
+                  size=21, follow=1, pad='linear', fignum=6):
+    """Count the days above or below a threshold.
+
+    df : WxDF
+        object containing daily data for a location. Can use a
+        pandas.DataFrame if df.city comtains the name of the city.
+    cols : list of int default [df.tmx, df.tmn]
+        columns to plot.
+    thresh : float default 0.0
+        Threshold to test.
+    above : bool default True
+        Count days above threshold (warmer) or below. Excludes threshold (>)
+        if above (True), includes threshold (<=) if below (False).
+    size : int default 21
+        Size of the smoothing window
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        Type of padding to use. If no padding desired, use ``None``.
+    follow : int [1 | 2] default 2
+        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
+        Applied to polynomial order for 'lowess', and number of components
+        for 'ssa'.
+    fignum : int opt default 5
+        Figure to use. Useful to keep multiple plots separated.
+    """
+
+    if not cols: cols = [df.tmx, df.tmn]
+    cns = df.columns[cols]
+    fig = plt.figure(fignum)
+    fig.clear()
+    ax = fig.add_subplot(111)
+    for cn in cns:
+        if above:
+            ys = df.loc[df[cn]>thresh, cn].groupby(df.index.year).count()
+        else:
+            ys = df[df[cn]<=thresh].groupby(df.index.year).count()
+
+    if above:
+        rtxt = " Above "
+    else:
+        rtxt = " At or Below "
+
 
 def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
                  trend=None, trendonly=False, size=21, follow=1, pad='linear',
@@ -1738,7 +1781,7 @@ def TopPrecipPlot(df, cols=None, lim = 10, size=21,
 
     plt.legend()
     ax.set_title('Average Precipitation of Top {0}% '
-                 'of Storms Per Year in {1}'.format(lim, df.city))
+                 'Days Per Year in {1}'.format(lim, df.city))
     ax.set_ylabel('Precipitation (mm/cm per day)')
     at.Attribute(ax, ha='left', va='bottom', source=st.source)
     at.AddYAxis(ax)
@@ -1790,15 +1833,15 @@ def StormPlot(df, cols=None, lim = 10, size=21,
         cn = df.columns[col]  # column name
         # Create a new column that has True where there was no precipiation
         # and False when there was. These will be treated as 1/0 later.
-        tf['sun'] = tf[cn].apply(lambda x: x==0)
-        # Create a new column that has the cumulative sum of the 'sun' column.
-        # What happens is that this value remains constant when there was
-        # precipitation, but increases when there wasn't. This allows grouping
+        tf['dry'] = tf[cn].apply(lambda x: x==0)
+        # Create a new column that has the cumulative sum of the 'dry' column.
+        # What happens is that this value increases when it was dry, but
+        # remains constant when it wasn't (True=1). This allows grouping
         # by consecutive precipitation days, since they will have the same
         # 'c' value.
         tf['c'] = tf['sun'].cumsum()
-        # Create a new frame grouped by the year and the 'c' value, and
-        # summed together.
+        # Create a new frame grouped by the year and the 'c' value, with
+        # days with same 'c' value (consecutive) summed together.
         storms = tf.groupby([tf.index.year, 'c']).sum()
         # Remove the days that didn't have any precipitation
         storms = storms[storms[cn]>0]
