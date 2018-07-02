@@ -693,7 +693,7 @@ def GridPlot(df, cols=2, title='', fignum=20):
 
 def Plot(df, rawcols=None, trendcols=None, ratecols=None,
              func=None, size=21, trend='wma', pad='linear',
-             follow=1, change=True, est=True, fignum=1):
+             follow=1, change=True, est=True):
     """Plot indicated columns of data, including the moving average.
 
     Parameters
@@ -725,8 +725,6 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
         Flag determines if change from baseline desired.
     est : bool default True
         Include current incomplete year as an estimate.
-    fignum : int default 1
-        Figure number to use. Useful if multiple plots are required.
 
     Notes
     -----
@@ -776,7 +774,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
         chstr = ''
     cols = yf.columns
 
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_Plot')
     fig.clear()  # May have been used before
     ax = fig.add_subplot(111)
 
@@ -827,7 +825,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
     fig.show()
     return
 
-def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=2):
+def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False):
     """Plot all records in daily data.
 
     Parameters
@@ -846,8 +844,6 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=2):
         5. Snow
     stack : boolean default False
         Show the record counts for each year in a separate stackplot.
-    fignum : (opt) default 4
-        Figure to use. Useful to keep multiple plots separated.
     """
 
     start = 1960  # start date for x-axis
@@ -863,7 +859,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=2):
              ]
     props = [props[i] for i in use]
     columns = [p[0] for p in props]
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_Records')
     fig.clear()
     ax = fig.add_subplot(111)
     plt.subplots_adjust(bottom=0.1)
@@ -922,7 +918,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=2):
 
     # Plot number of records per year in a stacked bar chart
     x = list(range(yrmin, yrmax+1))
-    fig = plt.figure(fignum+1)
+    fig = plt.figure(df.city+'_Records_Bar')
     fig.clear()
     ax = fig.add_subplot(111)
     plt.axis([start, 2020, 0, 45])
@@ -938,7 +934,7 @@ def RecordsPlot(df, use=[0,1,2,3,4,5], stack=False, fignum=2):
     print('Done')
     return
 
-def RecordsRatioPlot(df, fignum=3):
+def RecordsRatioPlot(df):
     """Find ratio of warm records to cold records for each year
     """
 
@@ -972,7 +968,7 @@ def RecordsRatioPlot(df, fignum=3):
     cf['H/L'] = cf['H']/cf['L']
     cf['DH/NL'] = cf['DH']/cf['NL']
 
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_Records_Ratio')
     fig.clear()
     ax = fig.add_subplot(111)
     xticks = list(cf.index)
@@ -992,7 +988,7 @@ def RecordsRatioPlot(df, fignum=3):
 
     return cf
 
-def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=4):
+def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7]):
     """Go through all data and plot what the weather was like for each day.
 
     Parameters
@@ -1004,15 +1000,13 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=4):
         Year to start the plot.
     use : list of int default [0,1,2,3,4,5,6]
         Data to plot.
-    fignum : int opt default 5
-        Figure to use. Useful to keep multiple plots separated.
 
     Note
     ----
     Colours are determined by the stylesheet
     """
 
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_Days')
     fig.clear()
     ax = fig.add_subplot(111)
     # Set up axis formatting
@@ -1083,8 +1077,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7], fignum=4):
     return
 
 def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
-                 trend=None, trendonly=False, size=21, follow=1, pad='linear',
-                 fignum=5):
+                 trend=None, trendonly=False, size=21, follow=1, pad='linear'):
     """Go through all data and plot what the weather was like for each day.
 
     Parameters
@@ -1113,8 +1106,6 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
         How closely to follow data. Applicable to 'lowess' and 'ssa' only.
         Applied to polynomial order for 'lowess', and number of components
         for 'ssa'.
-    fignum : int opt default 5
-        Figure to use. Useful to keep multiple plots separated.
 
     Note
     ----
@@ -1122,7 +1113,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     """
     if not column: column = df.tmx  # set default value
 
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_DayCount')
     fig.clear()
     ax = fig.add_subplot(111)
 
@@ -1335,8 +1326,7 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True,
 
 
 def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
-                 trend=None, trendonly=False, size=21, follow=1, pad='linear',
-                 fignum=6):
+                trend=None, trendonly=False, size=21, follow=1, pad='linear'):
     """Count the days in each temperature range. Plot in various formats.
 
     Parameters
@@ -1365,8 +1355,6 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
         How closely to follow data. Applicable to 'lowess' and 'ssa' only.
         Applied to polynomial order for 'lowess', and number of components
         for 'ssa'.
-    fignum : int opt default 5
-        Figure to use. Useful to keep multiple plots separated.
     """
     if not column: column = df.tmx  # set default
     ct = {df.tmx: 'High',
@@ -1374,7 +1362,7 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
           df.tav: 'Mean'}  # text used in title
     city = df.city
 
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_TemperatureCount')
     fig.clear()
     ax = fig.add_subplot(111)
 
@@ -1503,7 +1491,7 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     fig.show()
 
 def WarmPlot(df, high=0, low=0,
-             trend='wma', pad='linear', follow=1, fignum=7):
+             trend='wma', pad='linear', follow=1):
     """
     Plot the length of the warm season over time.
 
@@ -1524,8 +1512,6 @@ def WarmPlot(df, high=0, low=0,
         How closely to follow data. Applicable to 'lowess' and 'ssa' only.
         Applied to polynomial order for 'lowess', and number of components
         for 'ssa'.
-    fignum : int opt default 6
-        Figure to use. Useful to keep multiple plots separated.
     """
     import matplotlib.dates as mdates
 
@@ -1559,7 +1545,7 @@ def WarmPlot(df, high=0, low=0,
     xlim = (wby.index.min()-5, wby.index.max()+5)
     xticks = np.arange((xlim[0]//10*10), ((xlim[1]//10+1)*10), 10)
 
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_Warm')
     fig.clear()
     title = "Average Daily Temperatures Crossing Threshold for " + df.city
     fig.suptitle(title)
@@ -1631,7 +1617,7 @@ def WarmPlot(df, high=0, low=0,
 
     plt.show()
 
-def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=8):
+def WarmDaysPlot(df, trend='wma', pad='linear', follow=1):
     """
     Plot the length of the warm season over time.
 
@@ -1648,8 +1634,6 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=8):
         How closely to follow data. Applicable to 'lowess' and 'ssa' only.
         Applied to polynomial order for 'lowess', and number of components
         for 'ssa'.
-    fignum : int opt default 7
-        Figure to use. Useful to keep multiple plots separated.
     """
 
     cols = [df.tmx, df.tmn]
@@ -1680,7 +1664,7 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=8):
         cy[c+dy] = temp.groupby(temp.index.year).count()
         cy[c+tr] = sm.Smooth(cy[c+dy], 21, trend, pad, follow)
 
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_WarmCount')
     fig.clear()
     ax = fig.add_subplot(111)
     ax.set_xticks(xticks)
@@ -1702,7 +1686,7 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1, fignum=8):
     at.AddYAxis(ax)
     plt.show()
 
-def SnowPlot(df, fignum=9):
+def SnowPlot(df):
     """
     Go through all data and plot first and last day of snow for the year.
 
@@ -1711,8 +1695,6 @@ def SnowPlot(df, fignum=9):
     df : WxDF
         object containing daily data for a location. Can use a
         pandas.DataFrame if df.city comtains the name of the city.
-    fignum : int opt default 6
-        Figure to use. Useful to keep multiple plots separated.
     """
 
     # set up data for each set of records:
@@ -1726,7 +1708,7 @@ def SnowPlot(df, fignum=9):
     dy = ' Day'
     tr = ' Trend'
     ny = pd.Timestamp('2016-01-01')  # start of year
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_Snow')
     fig.clear()
     ax = fig.add_subplot(111)
     # af, by, ey are series, not dataframes
@@ -1761,7 +1743,7 @@ def SnowPlot(df, fignum=9):
     return
 
 def TopPrecipPlot(df, cols=None, lim = 10, size=21,
-              trend='wma', pad='linear', follow=1, fignum=10):
+              trend='wma', pad='linear', follow=1):
     """Plot average precipitation for top days of each year
 
     Parameters
@@ -1783,15 +1765,12 @@ def TopPrecipPlot(df, cols=None, lim = 10, size=21,
         Determines how closely to follow the data. Only used for
         'lowess' (determines the polynomial to use) and 'ssa' (determines
         how many reconstructed principles to use).
-     fignum : int default 8
-        Figure number to use. Override if you want to see more than one plot
-        at a time.
     """
     if not cols: cols = [df.rn, df.sn]
     frac = lim/100
     tmap = dict(zip(df.precips, ['Rain', 'Snow', 'Precipitation']))
     tunit = dict(zip(df.precips, ['mm', 'cm', 'mm']))
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_TopPrecip')
     fig.clear()
     ax = fig.add_subplot(111)
     for col in cols:
@@ -1820,7 +1799,7 @@ def TopPrecipPlot(df, cols=None, lim = 10, size=21,
     fig.show()
 
 def StormPlot(df, cols=None, lim = 10, size=21,
-              trend='wma', pad='linear', follow=1, fignum=10):
+              trend='wma', pad='linear', follow=1):
     """Plot average total precipitation for top storms (consecutive days of
        precipitation) of each year.
 
@@ -1849,7 +1828,7 @@ def StormPlot(df, cols=None, lim = 10, size=21,
     """
     if not cols: cols = [df.rn, df.sn]  # default values
 
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_Storms')
     fig.clear()
     ax = fig.add_subplot(111)
 
@@ -1904,7 +1883,7 @@ def StormPlot(df, cols=None, lim = 10, size=21,
 
 
 def MonthRangePlot(df, month=None, combine=True,
-                   trend='wma', pad='linear', follow=1, fignum=10):
+                   trend='wma', pad='linear', follow=1):
     """Get expected high and low temperature ranges for the supplied month.
 
     Parameters
@@ -1924,9 +1903,6 @@ def MonthRangePlot(df, month=None, combine=True,
         Determines how closely to follow the data. Only used for
         'lowess' (determines the polynomial to use) and 'ssa' (determines
         how many reconstructed principles to use).
-    fignum : int default 8
-        Figure number to use. Override if you want to see more than one plot
-        at a time.
     Note
     ----
     Uses moving average to calculate the mean temperatures, and the standard
@@ -1978,7 +1954,7 @@ def MonthRangePlot(df, month=None, combine=True,
 
     # PLOTTING
     title = 'Temperature Range in '+df.city+' for '+ st.monthL[month]
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_'+st.monthS[month]+'_Range')
     fig.clear()
     if not combine:  # create two separate plots
         plt.subplots_adjust(hspace=0.001, wspace=0.1,
