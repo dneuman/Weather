@@ -17,17 +17,23 @@ WxDF Class
 
 Data Plotting
 -------------
-   * GridPlot - Put several plots on one page
-   * TempPlot - Temperature plot with optional annotations
-   * TrendPlot - Plot multiple temperature trends (e.g. min, max)
-   * ErrorPlot - Plot showing 1 and 2 std dev from trend line
+   * Plot - Temperature plot with optional annotations
    * RecordsPlot - Show all records on one graph
-   * PrecipPlot - Show precipitation
-   * SnowPlot - Show snowfall
-   * HotDaysPlot - Show number of hot days per year
+   * RecordsRatioPlot - Ratio of high to low records by decade
+   * DayPlot - Matrix of every day colored by the type of day
+   * DayCountPlot - Shows how types of days change over time
+   * DayThreshPlot - How many days per year above or below threshold
+   * TemperatureCountPlot - Days in each temperature range per year
+   * WarmPlot - Shows how the warm season changes over time
+   * WarmDaysPlot - How many days in the warm season
+   * SnowPlot - Plots first and last snowfall
+   * TopPrecipPlot - Amount of precipitation on top days
+   * StormPlot - Amount of precipitation of top storms (over multiple days)
+   * MonthRange - High and Low range for a single month
 
 Miscellaneous
 -------------
+   * GridPlot - Put several plots on one page
    * CompareSmoothing - Show how Lowess and WMA compare for trends
    * CompareWeighting - Show how different weight windows compare
 
