@@ -57,16 +57,18 @@ plt.style.use('weather')
 
 class Settings():
     """Simple class to hold settings, making out of scope variables more
-       obvious. Use str(obj) to get list of settings.
+       obvious. Use str(obj) to get list of settings, or just 'obj' at the
+       command line.
     """
+    _desc = {}  # description of variables
     basepath = '/Users/Dan/Documents/Weather/Stations/'
     source = "Data: Environment Canada"
-    tlw = 4  # trend linewidth
-    dlw = 1  # data linewidth
-    ta = 0.99   # trend alpha
-    da = 0.3   # data alpha
-    sa = 0.15  # std dev alpha
-    ma = 0.1   # max/min alpha
+    tlw = 4; _desc['tlw']='trend linewidth'
+    dlw = 1; _desc['dlw']='data linewidth'
+    ta = 0.99; _desc['ta']='trend alpha'
+    da = 0.3; _desc['da']='data alpha'
+    sa = 0.15; _desc['sa']='std dev alpha'
+    ma = 0.1; _desc['ma']='max/min alpha'
 
     colors = {'doc':'Color from cycle to use per column',
               'Max Temp (°C)':'C0', 4:'C0',
@@ -92,6 +94,7 @@ class Settings():
               'September':9, 'October':10, 'November':11, 'December':12}
 
     def __repr__(self):
+        # Return list of variables and their descriptions in printable format
         s = "\nWeather Module Settings:\n\n"
         for key, value in Settings.__dict__.items():
             if type(key) != str:
@@ -99,9 +102,11 @@ class Settings():
             if key.startswith('_'):
                 continue
             if type(value)==dict and 'doc' in value:
-                s = s + '{:<8} dict: {}\n'.format((key+':'), value['doc'])
+                s += '{:<8} dict: {}\n'.format((key+':'), value['doc'])
             else:
-                s = s + '{:<8} {}\n'.format((key+':'), repr(value))
+                s += '{:<8} {:<6}{}\n'.format((key+':'),
+                                              repr(value),
+                                              self._desc.get(key,''))
         return s
 
 
@@ -132,6 +137,8 @@ class WxDF(pd.DataFrame):
     precips = [14, 16, 18]  # rain, snow, precipitation
     (tmx, tmn, tav) = temps
     (rn, sn, pr) = precips
+    wind = 24
+    wdir = 22
     qual = 3  # data quality column
 
     _nonHeadRows = 25
@@ -1260,7 +1267,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     fig.show()
 
 def DayThreshPlot(df, cols=None, thresh=0.0, above=True,
-                  size=21, follow=1, pad='linear', fignum=6):
+                  size=21, follow=1, pad='linear'):
     """Count the days above or below a threshold.
 
     df : WxDF
@@ -1271,8 +1278,8 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True,
     thresh : float default 0.0
         Threshold to test.
     above : bool default True
-        Count days above threshold (warmer) or below. Excludes threshold (>)
-        if above (True), includes threshold (<=) if below (False).
+        Count days above threshold (warmer) or below.
+        Includes threshold value.
     size : int default 21
         Size of the smoothing window
     pad : str ['linear' | 'mirror' | None] default 'linear'
@@ -1281,25 +1288,50 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True,
         How closely to follow data. Applicable to 'lowess' and 'ssa' only.
         Applied to polynomial order for 'lowess', and number of components
         for 'ssa'.
-    fignum : int opt default 5
-        Figure to use. Useful to keep multiple plots separated.
     """
 
     if not cols: cols = [df.tmx, df.tmn]
+    if type(cols) != list:
+        cols = [cols]
     cns = df.columns[cols]
-    fig = plt.figure(fignum)
+    fig = plt.figure(df.city+'_Threshold_'+str(thresh))
     fig.clear()
     ax = fig.add_subplot(111)
     for cn in cns:
+        # Get the count of days above/below threshold, grouped by year
         if above:
-            ys = df.loc[df[cn]>thresh, cn].groupby(df.index.year).count()
+            ys = df.loc[df[cn]>=thresh, cn]
         else:
-            ys = df[df[cn]<=thresh].groupby(df.index.year).count()
-
+            ys = df.loc[df[cn]<=thresh, cn]
+        ys = ys.groupby(ys.index.year).count()
+        if len(ys)<2:  # don't plot if no data returned
+            print('No data for '+cn)
+            continue
+        ax.plot(ys, lw=st.dlw, color=st.colors[cn], label=cn)
+        tf = sm.Smooth(ys, size=size, trend='wma', pad=pad,
+                              follow=follow)
+        ax.plot(tf, lw=st.tlw, color=st.colors[cn], alpha=st.ta, label='')
+    # Set up title from possible options
     if above:
-        rtxt = " Above "
+        rtxt = "At or Above"
     else:
-        rtxt = " At or Below "
+        rtxt = "At or Below"
+    if cols[0] in df.temps:
+        ttxt = 'Temperature'
+        utxt = '°C'
+    elif cols[0]==df.sn:
+        ttxt = 'Snow'
+        utxt = 'cm/day'
+    else:
+        ttxt = 'Rain'
+        utxt = 'mm/day'
+    title = " ".join([df.city, 'Days with', ttxt, rtxt, str(thresh), utxt])
+    ax.set_title(title)
+    at.Attribute(source=st.source, ha='left')
+    plt.legend()
+    ax2, pad = at.AddYAxis(ax)
+    ax.set_ylabel('Days')
+    plt.show()
 
 
 def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
