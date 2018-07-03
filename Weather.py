@@ -1264,11 +1264,11 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True, trend=trendDefault):
         utxt = '°C'
     elif cols[0]==df.sn:
         ttxt = 'Snow'
-        utxt = 'cm/day'
+        utxt = ' cm/day'
     else:
         ttxt = 'Rain'
-        utxt = 'mm/day'
-    title = " ".join([df.city, 'Days with', ttxt, rtxt, str(thresh), utxt])
+        utxt = ' mm/day'
+    title = " ".join([df.city, 'Days with', ttxt, rtxt, str(thresh)])+utxt
     ax.set_title(title)
     at.Attribute(source=st.source, ha='left')
     plt.legend()
