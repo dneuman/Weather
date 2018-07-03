@@ -88,13 +88,14 @@ def Padded(s, size, type='linear'):
 
     return pd.Series(y, index=x)
 
-def Smooth(s, size, trend='wma', pad='linear', follow=1):
+def Smooth(s, trendDict):
     """Convenience function to easily choose different smoothing algorithms.
 
     Parameters
     ----------
     s : pd.Series
         Series containing data to be smoothed
+    trendDict: dictionary containing the following keys:
     size : int
         Window size which determines how much data to look at for smoothing.
     trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
@@ -106,6 +107,10 @@ def Smooth(s, size, trend='wma', pad='linear', follow=1):
         Applied to polynomial order for 'lowess', and number of components
         for 'ssa'.
     """
+    size = trendDict.get('size', 21)
+    trend = trendDict.get('trend', 'wma')
+    pad = trendDict.get('pad', 'linear')
+    follow = trendDict.get('follow', 2)
 
     if trend == 'lowess':
         a = Lowess(s, pts=size, order=follow, pad=pad)

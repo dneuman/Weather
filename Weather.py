@@ -61,6 +61,21 @@ plt.style.use('weather')
 # matplotlib.style.library is a dictionary of available styles
 # user styles can be placed in ~/.matplotlib/
 
+#Default settings for trend lines
+trendDefault = {'size':21, 'trend':'wma', 'pad':'linear', 'follow':1}
+""" size : int default 21
+        Size of the moving average window. Larger values give smoother
+        results.
+    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
+        Which smoothing algorithm to use.
+    pad : str ['linear' | 'mirror' | None] default 'linear'
+        What kind of padding to use on the trend line
+    follow : int default 1
+        Determines how closely to follow the data. Only used for
+        'lowess' (determines the polynomial to use) and 'ssa' (determines
+        how many reconstructed principles to use).
+"""
+
 class Settings():
     """Simple class to hold settings, making out of scope variables more
        obvious. Use str(obj) to get list of settings, or just 'obj' at the
@@ -647,59 +662,8 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True,
 
     return yAvg, yStd, yMax, yMin
 
-def GridPlot(df, cols=2, title='', fignum=20):
-    """Create a series of plots above each other, sharing x-axis labels.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame containing data to be plotted in separate columns. Column
-        names will be used for labels.
-    cols : int (opt) default 2
-        Number of columns per figure to use.
-    title : String (opt) default blank
-        Name to use on each figure. Page numbers are added.
-    fignum : int (opt) default 20
-        Figure to start at. Useful if you want to keep older plots available.
-
-    Notes
-    -----
-    Useful for plotting the SSA reconstructed principles to see which might be
-    important.
-    """
-    rows = 4
-    n = len(df.columns)
-    if n <= rows: cols=1
-    plots = rows * cols
-    ax = list(range(plots))
-    pages = int(np.ceil(n / plots))
-    title = title + ' Page {}'
-    for page in range(pages):
-        fig = plt.figure(fignum+page, figsize=(14,10))
-        fig.clear()
-        fig.suptitle(title.format(page+1), fontsize=16, y=0.98)
-        plt.subplots_adjust(hspace=0.001, wspace=0.1,
-                            left=0.05, right=0.95,
-                            bottom=0.05, top=0.95)
-        end = min(plots, n - page * plots)
-        for i in range(end):
-            loc = page * plots + i
-            r = int(i/plots)
-            if r==0:
-                ax[i] = plt.subplot(rows, cols, i+1)
-            else:
-                ax[i] = plt.subplot(rows, cols, i+1, sharex=ax[i%cols])
-            if i < end-cols:  # hide ticks on all but last cols plots
-                xt = ax[i].get_xticklabels()
-                plt.setp(xt, visible=False)
-            col = df.columns[loc]
-            ax[i].plot(df[col], label=col)
-            plt.legend(loc='upper left')
-    plt.show()
-
 def Plot(df, rawcols=None, trendcols=None, ratecols=None,
-             func=None, size=21, trend='wma', pad='linear',
-             follow=1, change=True, est=True):
+             func=None, change=True, est=True, trend=trendDefault):
     """Plot indicated columns of data, including the moving average.
 
     Parameters
@@ -716,21 +680,13 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
     func : function default np.mean
         Function used to aggregate the annual data. Use np.sum
         for precipitation.
-    size : int default 21
-        Size of the moving average window. Larger values give smoother
-        results.
-    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
-        Which smoothing algorithm to use.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        What kind of padding to use on the trend line
-    follow : int default 1
-        Determines how closely to follow the data. Only used for
-        'lowess' (determines the polynomial to use) and 'ssa' (determines
-        how many reconstructed principles to use).
     change : bool default True
         Flag determines if change from baseline desired.
     est : bool default True
         Include current incomplete year as an estimate.
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
 
     Notes
     -----
@@ -792,7 +748,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
         handles.append(line)
     if len(trendcols) > 0:
         line = mlines.Line2D([], [], color='k', alpha=st.ta, lw=st.tlw,
-                             label=trend.upper()+' Trend')
+                             label=trend['trend'].upper()+' Trend')
         handles.append(line)
 
     for col in cols:
@@ -806,7 +762,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
         line = mpatches.Patch(color=c, label=col)
         handles.append(line)
 
-        a = sm.Smooth(s, size, trend, pad, follow)
+        a = sm.Smooth(s, trend)
         if col in df.columns[rawcols]:
             ax.plot(s, 'o-', alpha=st.da, lw=st.dlw, color=c)
         if col in df.columns[trendcols]:
@@ -1083,7 +1039,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7]):
     return
 
 def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
-                 trend=None, trendonly=False, size=21, follow=1, pad='linear'):
+                 trendonly=False, trend=trendDefault):
     """Go through all data and plot what the weather was like for each day.
 
     Parameters
@@ -1099,19 +1055,12 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
         Style of plot to make. 'fill' fills the line to the baseline. 'stack'
         makes a stack plot where the areas add to 100%. 'line' has no fill
         and just shows the data.
-    trend : [None | 'wma' | 'ssa' | 'lowess'] default None
-        What kind of trend line to use
     trendonly : boolean default False
         True if only the trend line is needed. The style keyword determines
         how it will look.
-    size : int default 21
-        Size of the smoothing window
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        Type of padding to use. If no padding desired, use ``None``.
-    follow : int [1 | 2] default 2
-        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
-        Applied to polynomial order for 'lowess', and number of components
-        for 'ssa'.
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
 
     Note
     ----
@@ -1183,8 +1132,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
         if not trend: trend='wma'  # set default trend type if not given
         tf = pd.DataFrame(index=data.index)
         for t in data:
-            tf[t] = sm.Smooth(data[t], size=size, trend=trend, pad=pad,
-                              follow=follow)
+            tf[t] = sm.Smooth(data[t], trend)
 
     if trendonly:
         # Use the trend data instead of actual data
@@ -1263,8 +1211,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     ax2.set_ylabel('Percent of Year')
     fig.show()
 
-def DayThreshPlot(df, cols=None, thresh=0.0, above=True,
-                  size=21, follow=1, pad='linear'):
+def DayThreshPlot(df, cols=None, thresh=0.0, above=True, trend=trendDefault):
     """Count the days above or below a threshold.
 
     df : WxDF
@@ -1305,8 +1252,7 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True,
             print('No data for '+cn)
             continue
         ax.plot(ys, lw=st.dlw, color=st.colors[cn], label=cn)
-        tf = sm.Smooth(ys, size=size, trend='wma', pad=pad,
-                              follow=follow)
+        tf = sm.Smooth(ys, trend)
         ax.plot(tf, lw=st.tlw, color=st.colors[cn], alpha=st.ta, label='')
     # Set up title from possible options
     if above:
@@ -1332,7 +1278,7 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True,
 
 
 def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
-                trend=None, trendonly=False, size=21, follow=1, pad='linear'):
+                trendonly=False, trend=trendDefault):
     """Count the days in each temperature range. Plot in various formats.
 
     Parameters
@@ -1348,19 +1294,12 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
         Style of plot to make. 'fill' fills the line to the baseline. 'stack'
         makes a stack plot where the areas add to 100%. 'line' has no fill
         and just shows the data.
-    trend : [None | 'wma' | 'ssa' | 'lowess'] default None
-        What kind of trend line to use
     trendonly : boolean default False
         True if only the trend line is needed. The style keyword determines
         how it will look.
-    size : int default 21
-        Size of the smoothing window
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        Type of padding to use. If no padding desired, use ``None``.
-    follow : int [1 | 2] default 2
-        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
-        Applied to polynomial order for 'lowess', and number of components
-        for 'ssa'.
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
     """
     if not column: column = df.tmx  # set default
     ct = {df.tmx: 'High',
@@ -1414,11 +1353,10 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
         labels.append(' '.join([name,r]))
 
     if trend or trendonly:
-        if not trend: trend='wma'  # set default trend type if not given
+        if not trend: trend=trendDefault  # set default trend type if not given
         tf = pd.DataFrame(index=data.index)
         for t in data:
-            tf[t] = sm.Smooth(data[t], size=size, trend=trend, pad=pad,
-                              follow=follow)
+            tf[t] = sm.Smooth(data[t], trend)
 
     if trendonly:
         # Use the trend data instead of actual data
@@ -1496,8 +1434,7 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     ax2.set_ylabel('Percent of Year')
     fig.show()
 
-def WarmPlot(df, high=0, low=0,
-             trend='wma', pad='linear', follow=1):
+def WarmPlot(df, high=0, low=0, trend=trendDefault):
     """
     Plot the length of the warm season over time.
 
@@ -1510,17 +1447,14 @@ def WarmPlot(df, high=0, low=0,
         Crossover temperature for the daily high.
     low : float default 0
         Crossover temperature for the daily low. Set to None to remove it.
-    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
-        Which algorithm to use. Defaults fo 'wma' if input is not recognized.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        Type of padding to use. If no padding desired, use ``None``.
-    follow : int [1 | 2] default 2
-        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
-        Applied to polynomial order for 'lowess', and number of components
-        for 'ssa'.
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
     """
     import matplotlib.dates as mdates
 
+    longTrend = trend.copy()  # trend with long averaging range
+    longTrend['size'] = 61
     cols = [df.tmx, df.tmn]
     af = df.iloc[:,cols].copy()
     maxc, minc = df.columns[cols]
@@ -1528,7 +1462,7 @@ def WarmPlot(df, high=0, low=0,
     tr = ' Trend'
     ny = pd.Timestamp(year=2016, month=1, day=1)
     for c in [maxc, minc]:
-        af[c] = sm.Smooth(df[c], 61, trend, None, follow)
+        af[c] = sm.Smooth(df[c], longTrend)
     by = af.loc[af.index.dayofyear < 182]  # beginning of year
     ey = af.loc[af.index.dayofyear > 182]  # end of year
     wby = by.groupby(by.index.year).mean()  # just getting the proper index
@@ -1541,7 +1475,7 @@ def WarmPlot(df, high=0, low=0,
             f[c+dy] = temp.groupby(temp.index.year).idxmin()
             f[c+dy] = f[c+dy].apply(lambda x: x.replace(year=2016))
             a = f[c+dy].apply(lambda x: x.dayofyear)
-            a = sm.Smooth(a, 21, trend, pad, follow)
+            a = sm.Smooth(a, trend)
             f[c+tr] = a.apply(lambda x: ny + pd.to_timedelta(x-1, unit='d'))
 
     # Set up plot
@@ -1623,7 +1557,7 @@ def WarmPlot(df, high=0, low=0,
 
     plt.show()
 
-def WarmDaysPlot(df, trend='wma', pad='linear', follow=1):
+def WarmDaysPlot(df, trend=trendDefault):
     """
     Plot the length of the warm season over time.
 
@@ -1632,23 +1566,20 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1):
     df : WxDF
         object containing daily data for a location. Can use a
         pandas.DataFrame if df.city comtains the name of the city.
-    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
-        Which algorithm to use. Defaults fo 'wma' if input is not recognized.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        Type of padding to use. If no padding desired, use ``None``.
-    follow : int [1 | 2] default 2
-        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
-        Applied to polynomial order for 'lowess', and number of components
-        for 'ssa'.
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
     """
 
+    longTrend = trend.copy()
+    longTrend['size'] = 61  # use for longer trends
     cols = [df.tmx, df.tmn]
     af = df.iloc[:,cols].copy()
     maxc, minc = df.columns[cols]
     dy = ' Day'
     tr = ' Trend'
     for c in [maxc, minc]:
-        af[c] = sm.Smooth(df[c], 61, trend, None, follow)
+        af[c] = sm.Smooth(df[c], trend)
     by = af.loc[af.index.dayofyear < 182]  # beginning of year
     ey = af.loc[af.index.dayofyear > 182]  # end of year
     wby = by.groupby(by.index.year).mean()  # just getting the proper index
@@ -1664,11 +1595,11 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1):
             f[c+dy] = temp.groupby(temp.index.year).idxmin()
             f[c+dy] = f[c+dy].apply(lambda x: x.dayofyear)
         diff[c+dy] = wey[c+dy] - wby[c+dy]
-        diff[c+tr] = sm.Smooth(diff[c+dy], 21, trend, pad, follow)
+        diff[c+tr] = sm.Smooth(diff[c+dy], trend)
         # Collect data on total days, which might be useful later
         temp = df.loc[df[c]>0, [c]]
         cy[c+dy] = temp.groupby(temp.index.year).count()
-        cy[c+tr] = sm.Smooth(cy[c+dy], 21, trend, pad, follow)
+        cy[c+tr] = sm.Smooth(cy[c+dy], trend)
 
     fig = plt.figure(df.city+'_WarmCount')
     fig.clear()
@@ -1692,7 +1623,7 @@ def WarmDaysPlot(df, trend='wma', pad='linear', follow=1):
     at.AddYAxis(ax)
     plt.show()
 
-def SnowPlot(df):
+def SnowPlot(df, trend=trendDefault):
     """
     Go through all data and plot first and last day of snow for the year.
 
@@ -1702,7 +1633,8 @@ def SnowPlot(df):
         object containing daily data for a location. Can use a
         pandas.DataFrame if df.city comtains the name of the city.
     """
-
+    shortTrend = trend.copy()
+    shortTrend['size'] = 15
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
     # Create list of daily records. Use 2016 as reference year (leap year)
@@ -1733,7 +1665,7 @@ def SnowPlot(df):
             f[cn+dy] = gr.idxmin()
         f[cn+dy] = f[cn+dy].apply(lambda x: x.replace(year=2016))
         a = f[cn+dy].apply(lambda x: x.dayofyear)
-        a = sm.Smooth(a, 15)
+        a = sm.Smooth(a, shortTrend)
         f[cn+tr] = a.apply(lambda x: ny + pd.to_timedelta(x-1, unit='d'))
         ax.plot(f[cn+dy], 'o-', color='C5',
                  linewidth=st.dlw,
@@ -1748,8 +1680,7 @@ def SnowPlot(df):
     plt.show()
     return
 
-def TopPrecipPlot(df, cols=None, lim = 10, size=21,
-              trend='wma', pad='linear', follow=1):
+def TopPrecipPlot(df, cols=None, lim = 10, trend=trendDefault):
     """Plot average precipitation for top days of each year
 
     Parameters
@@ -1763,14 +1694,9 @@ def TopPrecipPlot(df, cols=None, lim = 10, size=21,
     size : int default 21
         Size of the moving average window. Larger values give smoother
         results.
-    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
-        Which smoothing algorithm to use.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        What kind of padding to use on the trend line
-    follow : int default 1
-        Determines how closely to follow the data. Only used for
-        'lowess' (determines the polynomial to use) and 'ssa' (determines
-        how many reconstructed principles to use).
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
     """
     if not cols: cols = [df.rn, df.sn]
     frac = lim/100
@@ -1788,7 +1714,7 @@ def TopPrecipPlot(df, cols=None, lim = 10, size=21,
         for yr, ys in gs:
             num = int(len(ys) * frac + 0.5)
             ps[yr] = ys.nlargest(num).mean()
-        ts = sm.Smooth(ps, size, trend, pad, follow)
+        ts = sm.Smooth(ps, trend)
 
         ax.plot(ps, lw=st.dlw, color=st.colors[col])
         ax.plot(ts, lw=st.tlw, color=st.colors[col],
@@ -1804,8 +1730,7 @@ def TopPrecipPlot(df, cols=None, lim = 10, size=21,
     at.AddYAxis(ax)
     fig.show()
 
-def StormPlot(df, cols=None, lim = 10, size=21,
-              trend='wma', pad='linear', follow=1):
+def StormPlot(df, cols=None, lim = 10, trend=trendDefault):
     """Plot average total precipitation for top storms (consecutive days of
        precipitation) of each year.
 
@@ -1817,20 +1742,9 @@ def StormPlot(df, cols=None, lim = 10, size=21,
         precipitation column to use (rain, snow, all)
     lim : float default 10
         percentage of annual values to use for calculation
-    size : int default 21
-        Size of the moving average window. Larger values give smoother
-        results.
-    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
-        Which smoothing algorithm to use.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        What kind of padding to use on the trend line
-    follow : int default 1
-        Determines how closely to follow the data. Only used for
-        'lowess' (determines the polynomial to use) and 'ssa' (determines
-        how many reconstructed principles to use).
-     fignum : int default 8
-        Figure number to use. Override if you want to see more than one plot
-        at a time.
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
     """
     if not cols: cols = [df.rn, df.sn]  # default values
 
@@ -1871,7 +1785,7 @@ def StormPlot(df, cols=None, lim = 10, size=21,
             num = int(yf[cn].count() * frac + 0.5)
             ps[yr] = yf[cn].nlargest(num).mean()
         # Get the smoothed data, and plot the results.
-        ts = sm.Smooth(ps, size, trend, pad, follow)
+        ts = sm.Smooth(ps, trend)
 
         ax.plot(ps, lw=st.dlw, color=st.colors[col])
         ax.plot(ts, lw=st.tlw, color=st.colors[col],
@@ -1888,8 +1802,7 @@ def StormPlot(df, cols=None, lim = 10, size=21,
     fig.show()
 
 
-def MonthRangePlot(df, month=None, combine=True,
-                   trend='wma', pad='linear', follow=1):
+def MonthRangePlot(df, month=None, combine=True, trend=trendDefault):
     """Get expected high and low temperature ranges for the supplied month.
 
     Parameters
@@ -1901,14 +1814,9 @@ def MonthRangePlot(df, month=None, combine=True,
     combine : boolean default True
         Combine the maximum and minimum temperatures onto one plot. Otherwise
         use two separate plots (which is easier to read).
-    trend : str ['wma' | 'lowess' | 'ssa'] default 'wma'
-        Which smoothing algorithm to use.
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        What kind of padding to use on the trend line
-    follow : int default 1
-        Determines how closely to follow the data. Only used for
-        'lowess' (determines the polynomial to use) and 'ssa' (determines
-        how many reconstructed principles to use).
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
     Note
     ----
     Uses moving average to calculate the mean temperatures, and the standard
@@ -1921,8 +1829,6 @@ def MonthRangePlot(df, month=None, combine=True,
     # Calculate the means ± standard deviations
     # Get smoothed means and plot those
     # Get min and max values of high and low temps and plot those.
-
-    long = 19  # length of long weighting window
 
     if month is None or month==0 or month>12:
         month = dt.date.today().month
@@ -1955,8 +1861,7 @@ def MonthRangePlot(df, month=None, combine=True,
     afs = af.copy() # smoothed version of temps and ranges
     # Get the daily average max, min, avg temps.
     for c in af.columns:
-        afs[c] = sm.Smooth(af[c], size=long,
-                           trend=trend, pad=pad, follow=follow)
+        afs[c] = sm.Smooth(af[c], trend)
 
     # PLOTTING
     title = 'Temperature Range in '+df.city+' for '+ st.monthL[month]
@@ -2084,6 +1989,56 @@ def MonthRangePlot(df, month=None, combine=True,
 
 
 
+
+def GridPlot(df, cols=2, title='', fignum=20):
+    """Create a series of plots above each other, sharing x-axis labels.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing data to be plotted in separate columns. Column
+        names will be used for labels.
+    cols : int (opt) default 2
+        Number of columns per figure to use.
+    title : String (opt) default blank
+        Name to use on each figure. Page numbers are added.
+    fignum : int (opt) default 20
+        Figure to start at. Useful if you want to keep older plots available.
+
+    Notes
+    -----
+    Useful for plotting the SSA reconstructed principles to see which might be
+    important.
+    """
+    rows = 4
+    n = len(df.columns)
+    if n <= rows: cols=1
+    plots = rows * cols
+    ax = list(range(plots))
+    pages = int(np.ceil(n / plots))
+    title = title + ' Page {}'
+    for page in range(pages):
+        fig = plt.figure(fignum+page, figsize=(14,10))
+        fig.clear()
+        fig.suptitle(title.format(page+1), fontsize=16, y=0.98)
+        plt.subplots_adjust(hspace=0.001, wspace=0.1,
+                            left=0.05, right=0.95,
+                            bottom=0.05, top=0.95)
+        end = min(plots, n - page * plots)
+        for i in range(end):
+            loc = page * plots + i
+            r = int(i/plots)
+            if r==0:
+                ax[i] = plt.subplot(rows, cols, i+1)
+            else:
+                ax[i] = plt.subplot(rows, cols, i+1, sharex=ax[i%cols])
+            if i < end-cols:  # hide ticks on all but last cols plots
+                xt = ax[i].get_xticklabels()
+                plt.setp(xt, visible=False)
+            col = df.columns[loc]
+            ax[i].plot(df[col], label=col)
+            plt.legend(loc='upper left')
+    plt.show()
 
 def CompareWeighting(df, cols=[8], size=31, fignum=20):
     """Compare various weighting windows on real data.
