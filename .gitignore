@@ -1,6 +1,4 @@
 
 .DS_Store
 *.pyc
-*.pyc
-*.pyc
 __pycache__/Smoothing.cpython-36.pyc
