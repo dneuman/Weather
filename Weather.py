@@ -1224,14 +1224,9 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True, trend=trendDefault):
     above : bool default True
         Count days above threshold (warmer) or below.
         Includes threshold value.
-    size : int default 21
-        Size of the smoothing window
-    pad : str ['linear' | 'mirror' | None] default 'linear'
-        Type of padding to use. If no padding desired, use ``None``.
-    follow : int [1 | 2] default 2
-        How closely to follow data. Applicable to 'lowess' and 'ssa' only.
-        Applied to polynomial order for 'lowess', and number of components
-        for 'ssa'.
+    trend : dict default trendDefault
+        dictionary describing how to do smoothing. See Smoothing.Smooth for
+        keywords to use.
     """
 
     if not cols: cols = [df.tmx, df.tmn]

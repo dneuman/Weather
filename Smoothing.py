@@ -32,7 +32,7 @@ def Hanning(size):
     w = np.array(w[1:-1])  # remove zeros at endpoints
     return (w / max(w))
 
-def Padded(s, size, type='linear'):
+def Padded(s, size, ptype='linear'):
     """Takes a series and returns a version padded at both ends.
 
     Parameters
@@ -52,11 +52,14 @@ def Padded(s, size, type='linear'):
     'mirror' uses actual data for padding, but results in zero-slope
     (horizontal) end points. 'linear' will usually give better results.
     """
+
+    if type(s) != pd.Series:  # Check for dataframe
+        s = s.iloc[:, 0]  # use first column as a series
     n = len(s)
     hw = size//2  # half-window size
     tx = np.array(s.index)
     ty = np.array(s.values)
-    x = np.zeros(n + 2 * hw)
+    x = np.zeros(n + 2 * hw, dtype=s.index.dtype)
     y = np.zeros(n + 2 * hw)
     x[hw:hw+n] = tx  # add actual data
     y[hw:hw+n] = ty
@@ -67,7 +70,7 @@ def Padded(s, size, type='linear'):
     for i in range(hw):  # pad end
         x[i+hw+n] = tx[n-1] + (tx[n-1] - tx[n-2-i])
 
-    if type.lower() == 'mirror':
+    if ptype.lower() == 'mirror':
         # pad data as a reflection of original data. eg use index values:
         # 2, 1, 0, 1, 2, 3, 4, 5 and
         # n-3, n-2, n-1, n-2, n-3, n-4
@@ -77,14 +80,21 @@ def Padded(s, size, type='linear'):
             y[i+hw+n] = ty[n-2-i]
     else:
         # use 'linear' for any other input
-        # fit start
-        c = np.polyfit(tx[:hw], ty[:hw], 1)            # fit a line to data
+        # Note that x values may be dates, so normalize them so fit line
+        # coefficients are not too large
+        ix = x.copy()
+        if type(x[0]) == np.datetime64:
+            # make days, then floats
+            tx = (tx - x[0]).astype('m8[D]').astype(np.float64)
+            ix = (ix - x[0]).astype('m8[D]').astype(np.float64)
+        # fit a line to start
+        c = np.polyfit(tx[:hw], ty[:hw], 1)
         p = np.poly1d(c)
-        y[:hw] = p(x[:hw])
-        # fit end
-        c = np.polyfit(tx[-hw:], ty[-hw:], 1)            # fit a line to data
+        y[:hw] = p(ix[:hw])
+        # fit a line to end
+        c = np.polyfit(tx[-hw:], ty[-hw:], 1)
         p = np.poly1d(c)
-        y[-hw:] = p(x[-hw:])
+        y[-hw:] = p(ix[-hw:])
 
     return pd.Series(y, index=x)
 
@@ -270,18 +280,19 @@ def WeightedMovingAverage(fs, size, pad='linear', winType=Hanning, wts=None):
     # convolve has boundary effects when there is no overlap with the window
     # Begining and end of 'a' must be adjusted to compensate.
     # np.average() effectively scales the weights for the different sizes.
-    if pad: # pad the data with reflected values
-        # create padded beginning
-        ps = Padded(s, size)
+    if pad: # pad the data with appropriate values before smoothing
+        ps = Padded(s, size, pad)
         y = ps.values
         yc = np.convolve(y, window, mode='same')
         a = pd.Series(yc[hw:n+hw],
                       index=s.index,
                       name='Weighted Moving Average')
     else: # clip window as available data decreases
+        # start with a simple convolve for the bulk of data
         a = pd.Series(np.convolve(s, window, mode='same'),
                       index=s.index,
                       name='Weighted Moving Average')
+        # now fix start and end sections
         for i in range(hw+1):  # fix the start
             (ds, de, ws, we) = SetLimits(i, hw)
             a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
