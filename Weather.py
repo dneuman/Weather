@@ -1250,6 +1250,7 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True, trend=trendDefault):
         ax.plot(ys, lw=st.dlw, color=st.colors[cn], label=cn)
         tf = sm.Smooth(ys, trend)
         ax.plot(tf, lw=st.tlw, color=st.colors[cn], alpha=st.ta, label='')
+        at.AddRate(tf.loc[1990:], label='{:.2} days/decade')
     # Set up title from possible options
     if above:
         rtxt = "At or Above"
