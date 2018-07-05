@@ -51,6 +51,7 @@ import Annotate as at
 import pathlib
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
+import matplotlib.dates as mdates
 
 
 #%precision 2
@@ -1439,14 +1440,13 @@ def WarmPlot(df, high=0, low=0, trend=trendDefault):
         object containing daily data for a location. Can use a
         pandas.DataFrame if df.city comtains the name of the city.
     high : float default 0
-        Crossover temperature for the daily high.
+        Crossover temperature for the daily high. Set to None to remove it.
     low : float default 0
         Crossover temperature for the daily low. Set to None to remove it.
     trend : dict default trendDefault
         dictionary describing how to do smoothing. See Smoothing.Smooth for
         keywords to use.
     """
-    import matplotlib.dates as mdates
 
     longTrend = trend.copy()  # trend with long averaging range
     longTrend['size'] = 61
@@ -1465,14 +1465,17 @@ def WarmPlot(df, high=0, low=0, trend=trendDefault):
     for f, h in zip([wby, wey], [by, ey]):
         for c, lim in zip([maxc, minc], [high, low]):
             # get date for each year where it is just above freezing
-            if not lim: continue
+            if lim is None: continue
+            # get dates above the limit
             temp = h.loc[h[c]>lim, [c]]
+            # get the remaining date with lowest temp for each year
             f[c+dy] = temp.groupby(temp.index.year).idxmin()
+            # change year to 2016 for plotting
             f[c+dy] = f[c+dy].apply(lambda x: x.replace(year=2016))
             a = f[c+dy].apply(lambda x: x.dayofyear)
             a = sm.Smooth(a, trend)
+            # convert dayofyear to dates
             f[c+tr] = a.apply(lambda x: ny + pd.to_timedelta(x-1, unit='d'))
-
     # Set up plot
     majorFmt = mdates.DateFormatter('%b %d')
     minorFmt = mdates.DateFormatter('')
@@ -1520,7 +1523,7 @@ def WarmPlot(df, high=0, low=0, trend=trendDefault):
         ax.set_xlim(xlim[0], xlim[1])
     for ax, f in zip([ax0, ax1], [wby, wey]):
         for c, co, lim in zip([maxc, minc], ['C0', 'C1'], [high, low]):
-            if not lim: continue
+            if lim is None: continue
             ax.plot(f[c+tr], co+'-', lw=st.tlw, alpha=st.ta)
             ax.plot(f[c+dy], co+'o-', lw=st.dlw, alpha=st.da)
 
@@ -1529,13 +1532,13 @@ def WarmPlot(df, high=0, low=0, trend=trendDefault):
     for c, t, lim in zip(['C0', 'C1'],
                          ['Daily High', 'Daily Low'],
                          [high, low]):
-        if not lim: continue
+        if lim is None: continue
         line = mlines.Line2D([], [], color=c,
                              alpha=1.0, lw=st.tlw,
                              label=(t+' Crossing {:.1f} °C').format(lim))
         handles.append(line)
     plt.legend(handles=handles, loc=2)
-    at.Attribute(ax=ax0, source=st.source)
+    at.Attribute(ax=ax0, source=st.source, ha='left')
 
     # Add labels on right
     ax2 = ax0.twinx()
