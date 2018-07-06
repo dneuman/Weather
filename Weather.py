@@ -663,25 +663,27 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True,
 
     return yAvg, yStd, yMax, yMin
 
-def _GetTrendArgs(trend=trendDefault, **kwargs):
+def _GetTrendArgs(sTrend=trendDefault, **kwargs):
     """Utility to return a new dict with updated trend keyword values
 
     Parameters
     ----------
-    trend : dict default trendDefault
-        dictionary of trend keywords to be updated
-    kwargs : keywords and values with which to update the trend dict
+    sTrend : dict default trendDefault
+        starting dictionary of trend keywords to be updated
+    **kwargs : keywords and values with which to update the trend dict
+        Must supply '**kwargs', not 'kwargs', or else kwargs will replace
+        sTrend.
 
     Returns
     -------
     newTrend : updated dictionary of trend keywords and values.
     """
-    newTrend = trend.copy()
+    newTrend = sTrend.copy()
     newTrend.update(kwargs)
     return newTrend
 
 def Plot(df, rawcols=None, trendcols=None, ratecols=None,
-             func=None, change=True, est=True, trend=trendDefault):
+             func=None, change=True, est=True, **kwargs):
     """Plot indicated columns of data, including the moving average.
 
     Parameters
@@ -702,9 +704,10 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
         Flag determines if change from baseline desired.
     est : bool default True
         Include current incomplete year as an estimate.
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. See Smoothing.Smooth or the trendDefault definition for
+        explanation.
 
     Notes
     -----
@@ -715,6 +718,7 @@ def Plot(df, rawcols=None, trendcols=None, ratecols=None,
     this will generally be not useful, and the labels will be incorrect.
     """
 
+    trend = _GetTrendArgs(**kwargs)
 
     # get a list of all desired columns (check for None)
     allcols = set()
@@ -1057,7 +1061,7 @@ def DayPlot(df, start=1940, use = [0,1,2,3,4,5,6,7]):
     return
 
 def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
-                 trendonly=False, trend=trendDefault):
+                 trendonly=False, **kwargs):
     """Go through all data and plot what the weather was like for each day.
 
     Parameters
@@ -1076,14 +1080,17 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     trendonly : boolean default False
         True if only the trend line is needed. The style keyword determines
         how it will look.
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. Supply 'trend=None' or 'trend=False' if no trend line desired.
+        See Smoothing.Smooth or the trendDefault definition for explanation.
 
     Note
     ----
     Colours are determined by the stylesheet
     """
+    trend = _GetTrendArgs(**kwargs)
+    useTrend = bool(trend['trend'])
     if not column: column = df.tmx  # set default value
 
     fig = plt.figure(df.city+'_DayCount')
@@ -1116,7 +1123,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     cn = df.columns[column] # dry column name (Max Temp)
     precip = list(df.columns[df.precips])
     dryf = df.loc[df[precip[-1]]==0, [cn]]
-    wetf = df.loc[df[precip[-1]]>0, [precip]]
+    wetf = df.loc[df[precip[-1]]>0, precip]
     if sStack:
         # For days with both rain and snow, zero the lesser amount. This makes
         # stack total closer to 365.
@@ -1146,7 +1153,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
         colors.append(c)
         labels.append(' '.join([name,r]))
 
-    if trend or trendonly:
+    if useTrend or trendonly:
         if not trend: trend='wma'  # set default trend type if not given
         tf = pd.DataFrame(index=data.index)
         for t in data:
@@ -1154,7 +1161,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
 
     if trendonly:
         # Use the trend data instead of actual data
-        trend = None
+        useTrend = False
         data = tf
 
     # Create legend entries manually
@@ -1177,7 +1184,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
             ax.fill_between(data.index, data[p].values,
                             color=cmap[p], alpha=fa, label='')
             AddLegend(cmap[p], tmap[p])
-        if trend:
+        if useTrend:
             for p in plotOrd:
                 ax.plot(tf.index, tf[p].values, lw=3.0,
                         color=cmap[p], alpha=1.0, label='')
@@ -1185,7 +1192,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
         ax.stackplot(data.index, data.values.T,
                       colors=colors, alpha=0.6, labels=labels)
         [AddLegend(c, t) for c, t in zip(colors, labels)]
-        if trend:
+        if useTrend:
             sf = pd.DataFrame(index=tf.index)
             sf['sum']=0
             for p in tf:
@@ -1195,7 +1202,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     elif sLine:
         for p in plotOrd:
             AddLegend(cmap[p], tmap[p])
-            if not trend:
+            if not useTrend:
                 if trendonly:
                     ax.plot(data.index, data[p].values, '-',
                                     color=cmap[p], alpha=st.ta, lw=st.tlw,
@@ -1248,7 +1255,7 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True, **kwargs):
         explanation.
     """
 
-    trend = _GetTrendArgs(kwargs)
+    trend = _GetTrendArgs(**kwargs)
     if not cols: cols = [df.tmx, df.tmn]
     if type(cols) != list:
         cols = [cols]
@@ -1294,7 +1301,7 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True, **kwargs):
 
 
 def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
-                trendonly=False, trend=trendDefault):
+                trendonly=False, **kwargs):
     """Count the days in each temperature range. Plot in various formats.
 
     Parameters
@@ -1313,10 +1320,13 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     trendonly : boolean default False
         True if only the trend line is needed. The style keyword determines
         how it will look.
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. Supply 'trend=False' if no trend line is desired.
+        See Smoothing.Smooth or the trendDefault definition for explanation.
     """
+    trend = _GetTrendArgs(**kwargs)
+    useTrend = bool(trend['trend'])
     if not column: column = df.tmx  # set default
     ct = {df.tmx: 'High',
           df.tmn: 'Low',
@@ -1368,15 +1378,16 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
         colors.append(c)
         labels.append(' '.join([name,r]))
 
-    if trend or trendonly:
-        if not trend: trend=trendDefault  # set default trend type if not given
+    if useTrend or trendonly:
+        # set default trend type if not given
+        if not useTrend: trend['trend']=trendDefault['trend']
         tf = pd.DataFrame(index=data.index)
         for t in data:
             tf[t] = sm.Smooth(data[t], trend)
 
     if trendonly:
         # Use the trend data instead of actual data
-        trend = None
+        useTrend = False
         data = tf
 
     # Create legend entries manually
@@ -1393,13 +1404,13 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     if sFill:
         # Get plot order
         fa = 0.75
-        if trend:
+        if useTrend:
             fa = 0.15
         for p in plotOrd:
             ax.fill_between(data.index, data[p].values,
                             color=cmap[p], alpha=fa, label='')
             AddLegend(cmap[p], tmap[p])
-        if trend:
+        if useTrend:
             for p in plotOrd:
                 ax.plot(tf.index, tf[p].values, lw=3.0,
                         color=cmap[p], alpha=1.0, label='')
@@ -1407,7 +1418,7 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
         ax.stackplot(data.index, data.values.T,
                       colors=colors, alpha=0.6, labels=labels)
         [AddLegend(c, t) for c, t in zip(colors, labels)]
-        if trend:
+        if useTrend:
             sf = pd.DataFrame(index=tf.index)
             sf['sum']=0
             for p in tf:
@@ -1417,7 +1428,7 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     elif sLine:
         for p in plotOrd:
             AddLegend(cmap[p], tmap[p])
-            if not trend:
+            if not useTrend:
                 if trendonly:
                     ax.plot(data.index, data[p].values, '-',
                                     color=cmap[p], alpha=st.ta, lw=st.tlw,
@@ -1450,7 +1461,7 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     ax2.set_ylabel('Percent of Year')
     fig.show()
 
-def WarmPlot(df, high=0, low=0, trend=trendDefault):
+def WarmPlot(df, high=0, low=0, **kwargs):
     """
     Plot the length of the warm season over time.
 
@@ -1463,13 +1474,14 @@ def WarmPlot(df, high=0, low=0, trend=trendDefault):
         Crossover temperature for the daily high. Set to None to remove it.
     low : float default 0
         Crossover temperature for the daily low. Set to None to remove it.
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. See Smoothing.Smooth or the trendDefault definition for
+        explanation.
     """
 
-    longTrend = trend.copy()  # trend with long averaging range
-    longTrend['size'] = 61
+    trend = _GetTrendArgs(**kwargs)
+    longTrend = _GetTrendArgs(trend, size=61)
     cols = [df.tmx, df.tmn]
     af = df.iloc[:,cols].copy()
     maxc, minc = df.columns[cols]
@@ -1575,7 +1587,7 @@ def WarmPlot(df, high=0, low=0, trend=trendDefault):
 
     plt.show()
 
-def WarmDaysPlot(df, trend=trendDefault):
+def WarmDaysPlot(df, **kwargs):
     """
     Plot the length of the warm season over time.
 
@@ -1584,20 +1596,21 @@ def WarmDaysPlot(df, trend=trendDefault):
     df : WxDF
         object containing daily data for a location. Can use a
         pandas.DataFrame if df.city comtains the name of the city.
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. See Smoothing.Smooth or the trendDefault definition for
+        explanation.
     """
 
-    longTrend = trend.copy()
-    longTrend['size'] = 61  # use for longer trends
+    trend = _GetTrendArgs(**kwargs)
+    longTrend = _GetTrendArgs(trend, size=61)  # use for longer trends
     cols = [df.tmx, df.tmn]
     af = df.iloc[:,cols].copy()
     maxc, minc = df.columns[cols]
     dy = ' Day'
     tr = ' Trend'
     for c in [maxc, minc]:
-        af[c] = sm.Smooth(df[c], trend)
+        af[c] = sm.Smooth(df[c], longTrend)
     by = af.loc[af.index.dayofyear < 182]  # beginning of year
     ey = af.loc[af.index.dayofyear > 182]  # end of year
     wby = by.groupby(by.index.year).mean()  # just getting the proper index
@@ -1641,7 +1654,7 @@ def WarmDaysPlot(df, trend=trendDefault):
     at.AddYAxis(ax)
     plt.show()
 
-def SnowPlot(df, trend=trendDefault):
+def SnowPlot(df, **kwargs):
     """
     Go through all data and plot first and last day of snow for the year.
 
@@ -1651,8 +1664,8 @@ def SnowPlot(df, trend=trendDefault):
         object containing daily data for a location. Can use a
         pandas.DataFrame if df.city comtains the name of the city.
     """
-    shortTrend = trend.copy()
-    shortTrend['size'] = 15
+    trend = _GetTrendArgs(**kwargs)
+    shortTrend = _GetTrendArgs(trend, size=15)
     # set up data for each set of records:
     # [Name, df column, mark color and format, zorder]
     # Create list of daily records. Use 2016 as reference year (leap year)
@@ -1698,7 +1711,7 @@ def SnowPlot(df, trend=trendDefault):
     plt.show()
     return
 
-def TopPrecipPlot(df, cols=None, lim = 10, trend=trendDefault):
+def TopPrecipPlot(df, cols=None, lim = 10, **kwargs):
     """Plot average precipitation for top days of each year
 
     Parameters
@@ -1712,10 +1725,12 @@ def TopPrecipPlot(df, cols=None, lim = 10, trend=trendDefault):
     size : int default 21
         Size of the moving average window. Larger values give smoother
         results.
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. See Smoothing.Smooth or the trendDefault definition for
+        explanation.
     """
+    trend = _GetTrendArgs(**kwargs)
     if not cols: cols = [df.rn, df.sn]
     frac = lim/100
     tmap = dict(zip(df.precips, ['Rain', 'Snow', 'Precipitation']))
@@ -1748,7 +1763,7 @@ def TopPrecipPlot(df, cols=None, lim = 10, trend=trendDefault):
     at.AddYAxis(ax)
     fig.show()
 
-def StormPlot(df, cols=None, lim = 10, trend=trendDefault):
+def StormPlot(df, cols=None, lim = 10, **kwargs):
     """Plot average total precipitation for top storms (consecutive days of
        precipitation) of each year.
 
@@ -1760,10 +1775,12 @@ def StormPlot(df, cols=None, lim = 10, trend=trendDefault):
         precipitation column to use (rain, snow, all)
     lim : float default 10
         percentage of annual values to use for calculation
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. See Smoothing.Smooth or the trendDefault definition for
+        explanation.
     """
+    trend = _GetTrendArgs(**kwargs)
     if not cols: cols = [df.rn, df.sn]  # default values
 
     fig = plt.figure(df.city+'_Storms')
@@ -1820,7 +1837,7 @@ def StormPlot(df, cols=None, lim = 10, trend=trendDefault):
     fig.show()
 
 
-def MonthRangePlot(df, month=None, combine=True, trend=trendDefault):
+def MonthRangePlot(df, month=None, combine=True, **kwargs):
     """Get expected high and low temperature ranges for the supplied month.
 
     Parameters
@@ -1832,9 +1849,10 @@ def MonthRangePlot(df, month=None, combine=True, trend=trendDefault):
     combine : boolean default True
         Combine the maximum and minimum temperatures onto one plot. Otherwise
         use two separate plots (which is easier to read).
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. See Smoothing.Smooth or the trendDefault definition for
+        explanation.
     Note
     ----
     Uses moving average to calculate the mean temperatures, and the standard
@@ -1848,6 +1866,7 @@ def MonthRangePlot(df, month=None, combine=True, trend=trendDefault):
     # Get smoothed means and plot those
     # Get min and max values of high and low temps and plot those.
 
+    trend = _GetTrendArgs(**kwargs)
     if month is None or month==0 or month>12:
         month = dt.date.today().month
     maxc = df.columns[df.tmx] # max:0/4, min:1/6, avg:2/8
