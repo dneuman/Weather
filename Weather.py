@@ -663,6 +663,23 @@ def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True,
 
     return yAvg, yStd, yMax, yMin
 
+def _GetTrendArgs(trend=trendDefault, **kwargs):
+    """Utility to return a new dict with updated trend keyword values
+
+    Parameters
+    ----------
+    trend : dict default trendDefault
+        dictionary of trend keywords to be updated
+    kwargs : keywords and values with which to update the trend dict
+
+    Returns
+    -------
+    newTrend : updated dictionary of trend keywords and values.
+    """
+    newTrend = trend.copy()
+    newTrend.update(kwargs)
+    return newTrend
+
 def Plot(df, rawcols=None, trendcols=None, ratecols=None,
              func=None, change=True, est=True, trend=trendDefault):
     """Plot indicated columns of data, including the moving average.
@@ -1212,7 +1229,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     ax2.set_ylabel('Percent of Year')
     fig.show()
 
-def DayThreshPlot(df, cols=None, thresh=0.0, above=True, trend=trendDefault):
+def DayThreshPlot(df, cols=None, thresh=0.0, above=True, **kwargs):
     """Count the days above or below a threshold.
 
     df : WxDF
@@ -1225,11 +1242,13 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True, trend=trendDefault):
     above : bool default True
         Count days above threshold (warmer) or below.
         Includes threshold value.
-    trend : dict default trendDefault
-        dictionary describing how to do smoothing. See Smoothing.Smooth for
-        keywords to use.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. See Smoothing.Smooth or the trendDefault definition for
+        explanation.
     """
 
+    trend = _GetTrendArgs(kwargs)
     if not cols: cols = [df.tmx, df.tmn]
     if type(cols) != list:
         cols = [cols]
@@ -1247,9 +1266,9 @@ def DayThreshPlot(df, cols=None, thresh=0.0, above=True, trend=trendDefault):
         if len(ys)<2:  # don't plot if no data returned
             print('No data for '+cn)
             continue
-        ax.plot(ys, lw=st.dlw, color=st.colors[cn], label=cn)
+        ax.plot(ys, lw=st.dlw, color=st.colors[cn], label='')
         tf = sm.Smooth(ys, trend)
-        ax.plot(tf, lw=st.tlw, color=st.colors[cn], alpha=st.ta, label='')
+        ax.plot(tf, lw=st.tlw, color=st.colors[cn], alpha=st.ta, label=cn)
         at.AddRate(tf.loc[1990:], label='{:.2} days/decade')
     # Set up title from possible options
     if above:
