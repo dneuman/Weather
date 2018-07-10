@@ -117,21 +117,21 @@ def Smooth(s, trendDict):
         Applied to polynomial order for 'lowess', and number of components
         for 'ssa'.
     """
-    size = trendDict.get('size', 21)
     trend = trendDict.get('trend', 'wma')
-    pad = trendDict.get('pad', 'linear')
-    follow = trendDict.get('follow', 2)
+    follow = trendDict.get('follow', 1)
+
 
     if trend == 'lowess':
-        a = Lowess(s, pts=size, order=follow, pad=pad)
+        a = Lowess(s, order=follow, **trendDict)
     elif trend == 'ssa':
-        a = SSA(s, size, rtnRC=follow, pad=pad)
+        a = SSA(s, rtnRC=follow, **trendDict)
         a = a.sum(axis=1)
     else:
-        a = WeightedMovingAverage(s, size, pad=pad)
+        a = WeightedMovingAverage(s, **trendDict)
     return a
 
-def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
+def Lowess(data, f=2./3., pts=None, itns=3, order=1,
+           pad='linear', **kwargs):
     """Fits a nonparametric regression curve to a scatterplot.
 
     Parameters
@@ -179,7 +179,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
     r = min([r, n-1])
     order = max([1, order])
     if pad:
-        s = Padded(data, r*2, type=pad)
+        s = Padded(data, r*2, ptype=pad)
         x = np.array(s.index)
         y = np.array(s.values)
         n = len(y)
@@ -198,7 +198,7 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
     # Set up output
     yEst = np.zeros(n)
     delta = np.ones(n)  # Additional weights for iterations
-    for iteration in range(itn):
+    for iteration in range(itns):
         for i in range(n):
             weights = delta * w[:, i]
             xw = np.array([weights * x**j for j in range(order+1)])
@@ -219,7 +219,8 @@ def Lowess(data, f=2./3., pts=None, itn=3, order=1, pad='linear'):
         return pd.Series(yEst, index=data.index,
                          name='Locally Weighted Smoothing')
 
-def WeightedMovingAverage(fs, size, pad='linear', winType=Hanning, wts=None):
+def WeightedMovingAverage(fs, size, pad='linear', itns=1,
+                          winType=Hanning, wts=None, **kwargs):
     """Apply a weighted moving average on the supplied series.
 
     Parameters
@@ -230,6 +231,9 @@ def WeightedMovingAverage(fs, size, pad='linear', winType=Hanning, wts=None):
         how wide a window to use
     pad : str ['linear' | 'mirror' | None] default 'linear'
         Type of padding to use. If no padding desired, use ``None``.
+    itns : int default 1
+        Number of passes to use for reducing effect of anomalous data. Use
+        itn=1 for no reduction.
     winType : Function (optional, default = Hanning)
         Window function that takes an integer (window size) and returns a list
         of weights to be applied to the data. The default is Hanning, a
@@ -267,6 +271,7 @@ def WeightedMovingAverage(fs, size, pad='linear', winType=Hanning, wts=None):
         we = hw + (de - i)          # window end
         return ds, de, ws, we
 
+    itns = max(1, itns)
     s = fs.dropna()
     if type(wts) == type(None):
         size += (size+1) % 2  # make odd
@@ -277,31 +282,38 @@ def WeightedMovingAverage(fs, size, pad='linear', winType=Hanning, wts=None):
         size = len(wts)
     n = len(s)
     hw = int(size / 2) # half window width
-    # convolve has boundary effects when there is no overlap with the window
-    # Begining and end of 'a' must be adjusted to compensate.
-    # np.average() effectively scales the weights for the different sizes.
-    if pad: # pad the data with appropriate values before smoothing
-        ps = Padded(s, size, pad)
-        y = ps.values
-        yc = np.convolve(y, window, mode='same')
-        a = pd.Series(yc[hw:n+hw],
-                      index=s.index,
-                      name='Weighted Moving Average')
-    else: # clip window as available data decreases
-        # start with a simple convolve for the bulk of data
-        a = pd.Series(np.convolve(s, window, mode='same'),
-                      index=s.index,
-                      name='Weighted Moving Average')
-        # now fix start and end sections
-        for i in range(hw+1):  # fix the start
-            (ds, de, ws, we) = SetLimits(i, hw)
-            a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
-        for i in range(n-hw-1, n):  # fix the end
-            (ds, de, ws, we) = SetLimits(i, hw)
-            a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
+
+    for itn in range(itns):
+        # convolve has boundary effects when there is no overlap with the
+        # window. Begining and end of 'a' must be adjusted to compensate.
+        # np.average() scales the weights as the window size changes.
+        if pad: # pad the data with appropriate values before smoothing
+            ps = Padded(s, size, pad)
+            y = ps.values
+            yc = np.convolve(y, window, mode='same')
+            a = pd.Series(yc[hw:n+hw],
+                          index=s.index,
+                          name='Weighted Moving Average')
+        else: # clip window as available data decreases
+            # start with a simple convolve for the bulk of data
+            a = pd.Series(np.convolve(s, window, mode='same'),
+                          index=s.index,
+                          name='Weighted Moving Average')
+            # now fix start and end sections
+            for i in range(hw+1):  # fix the start
+                (ds, de, ws, we) = SetLimits(i, hw)
+                a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
+            for i in range(n-hw-1, n):  # fix the end
+                (ds, de, ws, we) = SetLimits(i, hw)
+                a.iloc[i] = np.average(s.iloc[ds:de], weights=window[ws:we])
+        # for next pass, clip outliers in data to 2 standard deviations
+        if (itns - itn) == 1: continue # don't bother for last pass
+        residual = s - a
+        std = residual.std()
+        s = s - residual + residual.clip(-2*std, 2*std)
     return a
 
-def SSA(s, m, rtnRC=1, pad='linear'):
+def SSA(s, m, rtnRC=1, pad='linear', **kwargs):
     """Implement Singular Spectrum Analysis for pandas Series
 
     Parameters
@@ -365,7 +377,7 @@ def SSA(s, m, rtnRC=1, pad='linear'):
     """
 
     if pad:
-        ps = Padded(s, m*2, type=pad)
+        ps = Padded(s, m*2, ptype=pad)
         y = np.array(ps.values)
     else:
         y = np.array(s.values)
