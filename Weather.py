@@ -2024,8 +2024,232 @@ def MonthRangePlot(df, month=None, combine=True, **kwargs):
     if not combine: at.AddYAxis(ax1)
     plt.show()
 
+def Histograms(df, col=WxDF.tmx, months=None,
+               llim=None, ulim=None, **kwargs):
+    """Plot histograms of values for groups of years
+    """
+    trend = _GetTrendArgs(size=51, trend='ssa', pad='mirror')
+    trend = _GetTrendArgs(trend, **kwargs)
+    bw = kwargs.pop('bw', 1.0)  # bin width, with override
+    scale = kwargs.pop('scale', 5) # amount of overlap on plots
+    cn = df.columns[col]
+    kind = {df.tmx: ['Daily High Temperature', '°C'],
+            df.tmn: ['Daily Low Temperature', '°C'],
+            df.tav: ['Daily Average Temperature', '°C'],
+            df.rn: ['Daily Rain', 'mm/day'],
+            df.sn: ['Daily Snow','cm/day'],
+            df.pr: ['Daily Precipitation', 'mm/day (equivalend)']}
+    # set up the year ranges to do histogram over
+    cyear = df.index.year.max()+1 # last year in data
+    ranges = []
+    if df.baseline[1] < 1970:  # add period up to 1970, if applicable
+        ranges.append(tuple(df.baseline)) # start with baseline period
+        ranges.append((df.baseline[1], 1970))
+    for r in range(1970, df.index[-1].year, 10):
+        ranges.append((r, min(cyear, r+10)))
+
+    pos = list(range(len(ranges)))  # position on the axes
+    pos = pos[::-1] # reverse order for plotting
+
+    # Set up the figure
+    fig = plt.figure(df.city+'_Histogram '+df.columns[col])
+    fig.clear()
+    ax = fig.add_subplot(111)
+    title = f"{df.city} {kind[col][0]} Distribution"
+    # add limits
+    if llim is not None and ulim is not None:
+        title += f"\nBetween {llim} and {ulim} {kind[col][1]}"
+    elif llim is not None:
+        title += f"\nAbove {llim}  {kind[col][1]}"
+    elif ulim is not None:
+        title += f"\nBelow {ulim} {kind[col][1]}"
+    # add months
+    if months is not None:
+        tlist = []
+        if llim is None and ulim is None: title += '\n'
+        for m in months:
+            tlist.append([', ', st.monthL[m]])
+        tlist[0][0] = ' For '
+        if len(months) > 1: tlist[-1][0] = ', and '
+        for t in tlist: title += t[0] + t[1]
+    ax.set_title(title)
+    ax.set_xlabel(kind[col][1])
+
+    # get just the desired months
+    mf = df[cn].dropna()
+    if months:
+        mf = mf[mf.index.month.isin(months)]
+    if col in df.precips:
+        mf = mf[mf > 0]
+    # get just the desired value ranges (for looking at edges)
+    if llim is not None:
+        mf = mf[mf >= llim]
+    if ulim is not None:
+        mf = mf[mf <= ulim]
+
+    # Bins are centred on bin width multiples, ie centred on 0
+    minb = np.round(mf.min()/bw)*bw - bw * .5
+    maxb = np.round((mf.max())/bw)*bw + bw
+    bins = np.arange(minb, maxb, bw, dtype=float)
+    lastdate = ''
+
+    def GetDiff(s):
+        if len(s) == 0: return 0
+        vc = s.value_counts() # get list of values by count
+        keys = sorted(vc.index)
+        diffs = np.array(keys[1:]) - np.array(keys[:-1])
+        # there'll be numeric errors, so round before counting again
+        ds = pd.Series(diffs.round(2)).value_counts()
+        d0 = ds.index[0]
+        if d0 == 0.6: diff = 5/9  # Fahrenheit
+        elif d0 == 0.5: diff = 0.5
+        elif d0 == 0.1: diff = 0.1
+        elif len(ds.index) == 1:
+            diff = d0
+        else:
+            d1 = ds.index[1]
+            diff = (ds[d0] * d0 + ds[d1] * d1) / (ds[d0] + ds[d1])
+        return diff
+
+    def PlaceData(cts, col, s, check):
+        global lastdate
+        if len(s) == 0:
+            print(f'Data missing: {col}, check:{check}, last:{lastdate}')
+            return check
+        else: lastdate = s.index[-1].year
+        vc = s.value_counts() # get list of values by count
+        keys = sorted(vc.index)
+        if check:  # check if distance between values large
+            diff = GetDiff(s)
+            if diff == 0.1: check = False
+        if check:
+            # allocate a portion of a value count to the bins the
+            # value might overlap due to measurement error not aligning
+            # with the bins.
+            for k in keys:
+                val = vc[k]
+                kmin = k - diff * 0.5
+                kmax = k + diff * 0.5
+                bl = int((kmin - minb)//bw)  # get lowest bin
+                bh = int((kmax - minb)//bw)  # get highest bin
+                # get amount of overlap on bin
+                rl = (1 - ((kmin - minb)%bw)) * bw/diff
+                rh = ((kmax - minb)%bw) * bw/diff
+                cts[col].iloc[bl] += val * rl
+                cts[col].iloc[bh] += val * rh
+                # now add any bins inbetween
+                if bh-bl > 1:
+                    ratio = bw/diff  # if ratio > 1, nothing will happen
+                    for b in range(bl+1, bh):
+                        cts[col].iloc[b] += val * ratio
+        else:
+            for k in keys:
+                b = int((k - minb)//bw)  # which bin to use
+                cts[col].iloc[b] += vc[k]  # add counts to bin
+        return check
+
+    # Now break up each range
+    counts = pd.DataFrame(index=bins)
+    medians = {} # dictionary of medians for each range
+    means = {}
+    doSpreading = kwargs.pop('fuzz', True)
+    for r in ranges:
+        # get the data for each range of years
+        c = f"{r[0]}—{r[1]-1}"  # column/range name
+        rs = mf[mf.index.year.isin(range(r[0], r[1]))]  # range series
+        medians[c] = rs.median()
+        means[c] = rs.mean()
+        counts[c] = pd.Series(index=bins, data=np.zeros(len(bins)))
+        if doSpreading:
+            diffS = GetDiff(rs[rs.index.year==r[0]])
+            diffE = GetDiff(rs[rs.index.year==(r[1]-1)])
+            if diffS==0 or diffE==0: print(r)
+            if diffS != diffE:
+                for year in range(r[0], r[1]):
+                    ys = rs[rs.index.year==year]
+                    doSpreading = PlaceData(counts, c, ys, check=True)
+            else:
+                if len(rs)==0:
+                    print(f'Missing data: {r[0]}-{r[1]}')
+                doSpreading = PlaceData(counts, c, rs, check=True)
+        else:
+            PlaceData(counts, c, rs, check=False)
+    for c in counts: counts[c] /= counts[c].sum()
+    # counts now contains a normalized histogram in each column
+
+    # put in 10 points per bin
+    x = np.arange(minb, maxb, bw/10, dtype=float)
+    hf = pd.DataFrame(index=x, dtype=float)  # holds histograms
+    sf = hf.copy()  # holds smoothed data
+    hpk = spk = 0  # for scaling plots relative to peak of all plots
+    for c in counts:
+        y = np.zeros(len(x))
+        # add 10 points per bin
+        for i in range(len(y)):
+            b = int((x[i] - minb)//bw)
+            y[i] = counts[c].iloc[b]
+        hf[c] = y
+        sf[c] = sm.Smooth(hf[c], trend)
+        hpk = max(hpk, hf[c].max())
+        spk = max(spk, sf[c].max())
+
+    showRaw = kwargs.pop('showRaw', False)
+    showMedian = kwargs.pop('showMedian', True)
+    if showRaw: ratio = scale/hpk
+    else: ratio = scale/spk
+    for c, p in zip(hf, pos):
+        hf[c] = hf[c] * ratio + p
+        sf[c] = sf[c] * ratio + p
+        if showRaw:
+            ax.fill_between(x, hf[c].values, p,
+                            color=st.colors[col], zorder=20-p)
+            ax.plot(hf[c], lw=2, color='grey', zorder=20-p)
+        else:
+            ax.fill_between(x, sf[c].values, p,
+                            color=st.colors[col], zorder=20-p)
+        ax.plot(sf[c], lw=2, color='k', zorder=20-p)
+        if showMedian:
+            i = int(np.round((medians[c]-minb)*10))
+            ax.vlines(x[i], p, sf[c].iloc[i], linestyle=':',
+                      color='k', lw=2, zorder=20-p)
+            i = int(np.round((means[c]-minb)*10))
+            ax.vlines(x[i], p, sf[c].iloc[i], linestyle='--',
+                      color='k', lw=2, zorder=20-p)
+
+# Alternate approach using existing functions, but lacks options
+#    parts = ax.violinplot(data, pos, points=100, vert=False, widths=6.0,
+#                          showmeans=False, showextrema=False,
+#                          showmedians=False)
+#    for body in parts['bodies']:
+#        paths = body.get_paths()[0]
+#        mean = np.mean(paths.vertices[:, 1])
+#        paths.vertices[:, 1][paths.vertices[:, 1] <= mean] = mean
+#        body.set_edgecolor('black')
+#        body.set_facecolor(st.colors[col])
+#        body.set_lw(2)
+#        body.set_alpha(1)
 
 
+    ax.set_ylim(bottom=-1)
+    ax.set_yticks(pos)
+    tx = mf.max()
+    if llim is None:
+        tx = mf.min()
+    for r, p in zip(hf.columns, pos):
+        plt.text(tx, p+.2, r, size='medium', zorder=30)
+    ax.tick_params(axis='y', labelcolor=(0,0,0,0))
+    ax.tick_params(axis='y', color=(0,0,0,0))
+    at.Attribute(ha='left', source=st.source)
+    if showMedian:
+        handles = []
+        line = mlines.Line2D([], [], color='k', linestyle=':',
+                             lw=2, label='Median')
+        handles.append(line)
+        line = mlines.Line2D([], [], color='k', linestyle='--',
+                             lw=2, label='Mean')
+        handles.append(line)
+        plt.legend(handles=handles)
+    plt.show()
 
 def GridPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
