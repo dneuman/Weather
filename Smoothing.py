@@ -124,7 +124,7 @@ def Smooth(s, trendDict):
     if trend == 'lowess':
         a = Lowess(s, order=follow, **trendDict)
     elif trend == 'ssa':
-        a = SSA(s, rtnRC=follow, **trendDict)
+        a = SSA(s, trendDict['size'], rtnRC=follow, **trendDict)
         a = a.sum(axis=1)
     else:
         a = WeightedMovingAverage(s, **trendDict)
