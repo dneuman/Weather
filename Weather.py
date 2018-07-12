@@ -52,6 +52,7 @@ import pathlib
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 import matplotlib.dates as mdates
+import matplotlib.patheffects as path_effects
 
 
 #%precision 2
@@ -2268,11 +2269,15 @@ def Histograms(df, col=WxDF.tmx, months=None,
 
     ax.set_ylim(bottom=-1)
     ax.set_yticks(pos)
-    tx = mf.max()
+    tx = maxb
     if llim is None:
-        tx = mf.min()
+        tx = minb
+    bg = ax.get_facecolor()  # make text a bit more visible
+    bgcolor = (bg[0], bg[1], bg[2], 0.8)  # add lower alpha
     for r, p in zip(hf.columns, pos):
-        plt.text(tx, p+.2, r, size='medium', zorder=30)
+        t = plt.text(tx, p+.2, r, size='medium', zorder=30, va='bottom')
+        t.set_path_effects([path_effects.Stroke(linewidth=3,
+                            foreground=bgcolor), path_effects.Normal()])
     ax.tick_params(axis='y', labelcolor=(0,0,0,0))
     ax.tick_params(axis='y', color=(0,0,0,0))
     at.Attribute(ha='left', source=st.source)
