@@ -91,6 +91,11 @@ class Settings():
     da = 0.3; _desc['da']='data alpha'
     sa = 0.15; _desc['sa']='std dev alpha'
     ma = 0.1; _desc['ma']='max/min alpha'
+    spring = [3, 4, 5]; _desc['spring']='months for spring'
+    summer = [6, 7, 8]; _desc['summer']='months for summer'
+    fall = [9, 10, 11]; _desc['fall']='months for fall'
+    winter = [12, 1, 2]; _desc['winter']='months for winter'
+
 
     colors = {'doc':'Color from cycle to use per column',
               'Max Temp (°C)':'C0', 4:'C0',
@@ -126,7 +131,7 @@ class Settings():
             if type(value)==dict and 'doc' in value:
                 s += '{:<8} dict: {}\n'.format((key+':'), value['doc'])
             else:
-                s += '{:<8} {:<6}{}\n'.format((key+':'),
+                s += '{:<8} {:<12}{}\n'.format((key+':'),
                                               repr(value),
                                               self._desc.get(key,''))
         return s
@@ -2025,8 +2030,37 @@ def MonthRangePlot(df, month=None, combine=True, **kwargs):
     plt.show()
 
 def Histograms(df, col=WxDF.tmx, months=None,
-               llim=None, ulim=None, **kwargs):
+               llim=None, ulim=None, showMedian=True, **kwargs):
     """Plot histograms of values for groups of years
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        daily data contained in a pandas DataFrame
+    col : int default WxDF.tmx
+        Which data column to use. Defaults to max temperature.
+    months : list default None
+        List of which months to use. Passing None will cause the entire
+        year to be used.
+    llim : float default None
+        Lower limit of data, showing only values at or above this.
+    ulim : float default None
+        Upper limit of data, showing only values at or below this.
+    showMedian : bool default True
+        If True, shows a line demarking both median and mean value.
+    showRaw : bool default False
+        If True, shows the actual histogram bars as well as the smoothed
+        line. Useful for identifying data irregularities.
+    fuzz : bool default True
+        If True, checks if measured units are bigger than recorded units,
+        eg measured in Fahrenheit, but recorded in .1°C. If so, will
+        spread the measured value over any bins it could possibly overlap.
+    kwargs : **dict
+        keywords to pass to the smoothing function that override the default
+        values. See Smoothing.Smooth or the trendDefault definition for
+        explanation.
+    Note
+    ----
+    Use the 'size' keyword to adjust how the smoothed line looks.
     """
     trend = _GetTrendArgs(size=51, trend='ssa', pad='mirror')
     trend = _GetTrendArgs(trend, **kwargs)
@@ -2091,10 +2125,11 @@ def Histograms(df, col=WxDF.tmx, months=None,
     minb = np.round(mf.min()/bw)*bw - bw * .5
     maxb = np.round((mf.max())/bw)*bw + bw
     bins = np.arange(minb, maxb, bw, dtype=float)
-    lastdate = ''
 
     def GetDiff(s):
-        if len(s) == 0: return 0
+        """Return the most common jump between values. Used to determine if
+           measured units differ from recorded units.
+        """
         vc = s.value_counts() # get list of values by count
         keys = sorted(vc.index)
         diffs = np.array(keys[1:]) - np.array(keys[:-1])
@@ -2112,11 +2147,12 @@ def Histograms(df, col=WxDF.tmx, months=None,
         return diff
 
     def PlaceData(cts, col, s, check):
-        global lastdate
-        if len(s) == 0:
-            print(f'Data missing: {col}, check:{check}, last:{lastdate}')
-            return check
-        else: lastdate = s.index[-1].year
+        """Creates counts of each recorded value. Also checks if measured
+           amounts larger than recorded resolution, which would result in
+           gaps in the bins. To avoid this, the values are spread out over
+           the width of the measurement error, and allocating the
+           measurement to multiple bins proportionately to the overlap.
+        """
         vc = s.value_counts() # get list of values by count
         keys = sorted(vc.index)
         if check:  # check if distance between values large
