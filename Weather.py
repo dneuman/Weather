@@ -581,25 +581,60 @@ class WxDF(pd.DataFrame):
         return yf
 
 class Texture(object):
-    def __init__(self, darkness=.05, dilute=10):
-        # create list of values to choose from. '1.' means original
+    """Class for using agg_filter to apply texture to matplotlib patches.
+        Basic information comes from `Demo Agg Filter
+        <https://matplotlib.org/gallery/misc/demo_agg_filter.html>`_
+
+        Parameters
+        ----------
+        darkness : float (0 - 1) default 0.15
+            How much darker to make the patch color. The patch colors are
+            multiplied by (1 - darkness) at random locations. Levels
+            at 1/3 and 2/3 amounts are also used.
+        prob : float (0 - 1) default 0.3
+            Probability that any point will be made darker
+
+        Usage
+        -----
+        Make a filter object with the desired parameters, eg::
+
+            filt = Texture(darkness=.1, prob=.08)
+
+        then use the filter when drawing something you want textured::
+
+            ax.fill_between([0,1], [1,1], agg_filter=filt)
+
+        You can have multiple texture styles by creating multiple filter
+        objects::
+
+            light_texture = Texture(darkness=.05, prob=.05)
+            dark_texture = Texture(darkness=.15, prob=.2)
+            ax.fill_between([0,1], [1,1], agg_filter=light_texture)
+            ax.fill_between([1,2], [1,1], agg_filter=dark_texture)
+
+    """
+    def __init__(self, darkness=.15, prob=.3):
+        """Initialize filter object with the persistent data required.
+        """
+        # Create list of values to choose from. '1.' means original
         # image value will be unchanged. '.85' will cause image to be
-        # darkened to 85% of original value. Add more '1.'s to decrease
-        # likelihood a point will be darkened.
-        choice = list(1. - np.array([1,2,3]) * darkness)
-        for i in range(dilute): choice.append(1.)
-        # [.95, .90, .85, 1., 1., 1., ...]
+        # darkened to 85% of original value.
+        choice = list(1. - np.array([1,2,3]) * darkness/3)
+        choice.append(1.)
+        # [.95, .90, .85, 1.]
         self.choice = choice
+        self.p = 3 * [prob/3] + [1. - prob]  # probabilities
+        # [.1, .1, .1, .7]
 
     def __call__(self, src, dpi):
-        """Make a textured grey-scale image"""
-        #return src.copy()
+        """Appy texture to supplied image"""
         sh = src.shape
         shape = (sh[0], sh[1], 1)
-        noise = np.random.choice(self.choice, shape)
+        noise = np.random.choice(self.choice, shape, p=self.p)
         res  = src * noise
+        # Top layer likely has alpha with patch shape, so copy from original
         res[:, :, 3] = src[:, :, 3]
-        return res, 0, 0
+        return res, 0, 0  # 0, 0 are likely x,y offsets for, eg, dropshadows
 
 
 def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True,
