@@ -580,6 +580,28 @@ class WxDF(pd.DataFrame):
 
         return yf
 
+class Texture(object):
+    def __init__(self, darkness=.05, dilute=10):
+        # create list of values to choose from. '1.' means original
+        # image value will be unchanged. '.85' will cause image to be
+        # darkened to 85% of original value. Add more '1.'s to decrease
+        # likelihood a point will be darkened.
+        choice = list(1. - np.array([1,2,3]) * darkness)
+        for i in range(dilute): choice.append(1.)
+        # [.95, .90, .85, 1., 1., 1., ...]
+        self.choice = choice
+
+    def __call__(self, src, dpi):
+        """Make a textured grey-scale image"""
+        #return src.copy()
+        sh = src.shape
+        shape = (sh[0], sh[1], 1)
+        noise = np.random.choice(self.choice, shape)
+        res  = src * noise
+        res[:, :, 3] = src[:, :, 3]
+        return res, 0, 0
+
+
 def _AddEOY(df, col, offset=0, ax=None, legend=True, onlymean=True,
             func=np.mean):
     """Make an estimate of the mean temperature for the last year in data.
@@ -1098,6 +1120,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     trend = _GetTrendArgs(**kwargs)
     useTrend = bool(trend['trend'])
     if not column: column = df.tmx  # set default value
+    tfilt = Texture()
 
     fig = plt.figure(df.city+'_DayCount')
     fig.clear()
@@ -1113,8 +1136,8 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
              ['Frigid', '(< -15°C)', -100, -15, df.tmx, 'C1'],
              ['Freezing', '(-15–0)', -15, 0, df.tmx, 'C5'],
              ['Cold', '(0–15)', 0, 15, df.tmx, 'C4'],
-             ['Cool', '(15–23)', 15, 23, df.tmx, 'C3'],
-             ['Warm', '(23–30)', 23, 30, df.tmx, 'C0'],
+             ['Cool', '(15–20)', 15, 20, df.tmx, 'C3'],
+             ['Warm', '(20–30)', 20, 30, df.tmx, 'C0'],
              ['Hot', '(≥30)', 30, 100, df.tmx, 'C6']]
     ct = {df.tmx: 'High',
           df.tmn: 'Low',
@@ -1184,11 +1207,12 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     if sFill:
         # Get plot order
         fa = 0.75
-        if trend:
-            fa = 0.15
+#        if trend:
+#            fa = 0.15
         for p in plotOrd:
             ax.fill_between(data.index, data[p].values,
-                            color=cmap[p], alpha=fa, label='')
+                            color=cmap[p], alpha=fa, label='',
+                            agg_filter=tfilt)
             AddLegend(cmap[p], tmap[p])
         if useTrend:
             for p in plotOrd:
@@ -1334,6 +1358,7 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
     trend = _GetTrendArgs(**kwargs)
     useTrend = bool(trend['trend'])
     if not column: column = df.tmx  # set default
+    tfilt = Texture()
     ct = {df.tmx: 'High',
           df.tmn: 'Low',
           df.tav: 'Mean'}  # text used in title
@@ -1414,7 +1439,8 @@ def TemperatureCountPlot(df, use = [0,1,2,3,4,5], column=None, style='fill',
             fa = 0.15
         for p in plotOrd:
             ax.fill_between(data.index, data[p].values,
-                            color=cmap[p], alpha=fa, label='')
+                            color=cmap[p], alpha=fa, label='',
+                            agg_filter=tfilt)
             AddLegend(cmap[p], tmap[p])
         if useTrend:
             for p in plotOrd:
@@ -2085,6 +2111,7 @@ def Histograms(df, col=WxDF.tmx, months=None,
 
     pos = list(range(len(ranges)))  # position on the axes
     pos = pos[::-1] # reverse order for plotting
+    tfilt = Texture()  # texture filter
 
     # Set up the figure
     fig = plt.figure(df.city+'_Histogram '+df.columns[col])
@@ -2234,6 +2261,8 @@ def Histograms(df, col=WxDF.tmx, months=None,
     showMedian = kwargs.pop('showMedian', True)
     if showRaw: ratio = scale/hpk
     else: ratio = scale/spk
+    bg = ax.get_facecolor()  # use background color for contrast
+    bgcolor = (bg[0], bg[1], bg[2], 0.8)  # add lower alpha
     for c, p in zip(hf, pos):
         hf[c] = hf[c] * ratio + p
         sf[c] = sf[c] * ratio + p
@@ -2242,16 +2271,16 @@ def Histograms(df, col=WxDF.tmx, months=None,
                             color=st.colors[col], zorder=20-p)
             ax.plot(hf[c], lw=2, color='grey', zorder=20-p)
         else:
-            ax.fill_between(x, sf[c].values, p,
-                            color=st.colors[col], zorder=20-p)
+            ax.fill_between(x, sf[c].values, p, color=st.colors[col],
+                            zorder=20-p, agg_filter=tfilt)
         ax.plot(sf[c], lw=2, color='k', zorder=20-p)
         if showMedian:
             i = int(np.round((medians[c]-minb)*10))
             ax.vlines(x[i], p, sf[c].iloc[i], linestyle=':',
-                      color='k', lw=2, zorder=20-p)
+                      color=bgcolor, alpha=.5, lw=2, zorder=20-p)
             i = int(np.round((means[c]-minb)*10))
             ax.vlines(x[i], p, sf[c].iloc[i], linestyle='--',
-                      color='k', lw=2, zorder=20-p)
+                      color=bgcolor, alpha=.5, lw=2, zorder=20-p)
 
 # Alternate approach using existing functions, but lacks options
 #    parts = ax.violinplot(data, pos, points=100, vert=False, widths=6.0,
@@ -2272,8 +2301,6 @@ def Histograms(df, col=WxDF.tmx, months=None,
     tx = maxb
     if llim is None:
         tx = minb
-    bg = ax.get_facecolor()  # make text a bit more visible
-    bgcolor = (bg[0], bg[1], bg[2], 0.8)  # add lower alpha
     for r, p in zip(hf.columns, pos):
         t = plt.text(tx, p+.2, r, size='medium', zorder=30, va='bottom')
         t.set_path_effects([path_effects.Stroke(linewidth=3,
@@ -2291,6 +2318,19 @@ def Histograms(df, col=WxDF.tmx, months=None,
         handles.append(line)
         plt.legend(handles=handles)
     plt.show()
+
+
+
+def TestTexture(test=True):
+    txt = Texture()
+    fig = plt.figure('Test Texture')
+    fig.clear()
+    ax = fig.add_subplot(111)
+    ax.fill_between([2,3], [1,1])
+    ax.fill_between([0,1], [1,1], agg_filter=txt)
+    plt.show()
+
+
 
 def GridPlot(df, cols=2, title='', fignum=20):
     """Create a series of plots above each other, sharing x-axis labels.
