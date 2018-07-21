@@ -32,6 +32,18 @@ class Texture(object):
             prob /= 4.
             self.choice = [1. - dark, 1.]
             self.p = [prob, 1. - prob]
+        elif style == 'hash2':
+            # hash2 spreads out points somewhat evenly, but random within
+            # 3x3 blocks. Up to 2 points are chosen per block.
+            # Set up arrays and their probabilities
+            self.p = 9 * [1./11] + [2./11]  # 2 chances to get blank
+            self.choice = list(range(9)) + ['blank']
+            blank = np.ones((3,3))
+            self.template = {'blank': blank}
+            blank[1, 1] = dark
+            for i in range(9):
+                    self.template[i] = blank
+                    blank = np.roll(blank, 1)
         else:
             self.choice = list(1. - np.array([1,2,3]) * dark) + [1.]
             self.p = 3 * [prob] + [1. - 3 * prob]
@@ -102,11 +114,11 @@ class Texture(object):
         buffer = np.ones(shape)
         for axis in [0, 1]:
             for dtn in [-1, 1]:
-                half = np.random.choice(self.choice, shape, p=self.p)
-                buffer *= half
-                h2 = half * half
-                buffer *= np.roll(h2, dtn, axis)
-                buffer *= np.roll(h2 * half, 2 * dtn, axis)
+                small = np.random.choice(self.choice, shape, p=self.p)
+                buffer *= small
+                s2 = small * small
+                buffer *= np.roll(s2, dtn, axis)
+                buffer *= np.roll(s2 * small, 2 * dtn, axis)
         np.clip(buffer, self.choice[0]**3, 1, buffer)
         self._expand(buffer, noise[..., 0])
         if self.light:
@@ -114,6 +126,43 @@ class Texture(object):
         else:
             rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
         return self._combine(rgb, clip)
+
+    def _hash2(self, im):
+        n = self.block
+        rgb = im[...,:3]  # (nx, ny, 3)
+        clip = im[...,3]   # (nx, ny)
+        nx, ny = clip.shape
+        shape = (nx//n, ny//n)
+        small = {}
+        for dtn in [-1, 1]:
+            for axis in [0, 1]:
+                small[(dtn, axis)] = np.ones(shape)
+        keys = list(small.keys())
+        for x in range(nx//n):
+            for y in range(ny//n):
+                # Pick two each of direction buffers and templates
+                k = np.random.choose(keys, 2, replace=False)
+                t = np.random.choose(self.choice, 2,
+                                     replace=False, p=self.p)
+                for i in range(2):
+                    b = small[k[i]]
+                    b[x:x+3, y:y+3] *= self.template[t[i]]
+        buffer = np.ones(shape)
+        for dtn in [-1, 1]:
+            for axis in [0, 1]:
+                s = small[(dtn, axis)]
+                s2 = s * s
+                buffer *= s
+                buffer *= np.roll(s2, dtn, axis)
+                buffer *= np.roll(s2 * s, 2 * dtn, axis)
+        noise = np.ones((nx, ny, 1))
+        self._expand(buffer, noise[..., 0])
+        if self.light:
+            rgb = self._light(rgb, noise[..., 0])
+        else:
+            rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
+        return self._combine(rgb, clip)
+
 
 
 def texture_pie(ax):
