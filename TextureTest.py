@@ -8,6 +8,7 @@ Created on Fri Jul 13 17:33:27 2018
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.random as rnd
 from matplotlib.colors import LightSource
 
 class Texture(object):
@@ -37,10 +38,10 @@ class Texture(object):
             # 3x3 blocks. Up to 2 points are chosen per block.
             # Set up arrays and their probabilities
             self.p = 9 * [1./11] + [2./11]  # 2 chances to get blank
-            self.choice = list(range(9)) + ['blank']
+            self.choice = list(range(9)) + [-1]
             blank = np.ones((3,3))
-            self.template = {'blank': blank}
-            blank[1, 1] = dark
+            self.template = {-1: blank.copy()}
+            blank[0, 0] = 1. - dark
             for i in range(9):
                     self.template[i] = blank
                     blank = np.roll(blank, 1)
@@ -49,9 +50,10 @@ class Texture(object):
             self.p = 3 * [prob] + [1. - 3 * prob]
         self.kwargs = kwargs
 
-    def __call__(self, im, dpi):
+    def __call__(self, im, dpi=100):
         if self.style == 'noise': return self._noise(im), 0, 0
         if self.style == 'hash': return self._hash(im), 0, 0
+        if self.style == 'hash2': return self._hash2(im), 0, 0
         return im, 0, 0  # Do nothing if style not found
 
     def _expand(self, small, large):
@@ -95,7 +97,7 @@ class Texture(object):
         clip = im[...,3]   # (nx, ny)
         nx, ny = clip.shape
         shape = (nx//n, ny//n)
-        half = np.random.choice(self.choice, shape, p=self.p)  # (nx, ny)
+        half = rnd.choice(self.choice, shape, p=self.p)  # (nx, ny)
         noise = np.ones((nx, ny, 1))  # (nx, ny, 1)
         self._expand(half, noise[..., 0])
         if self.light:
@@ -114,7 +116,7 @@ class Texture(object):
         buffer = np.ones(shape)
         for axis in [0, 1]:
             for dtn in [-1, 1]:
-                small = np.random.choice(self.choice, shape, p=self.p)
+                small = rnd.choice(self.choice, shape, p=self.p)
                 buffer *= small
                 s2 = small * small
                 buffer *= np.roll(s2, dtn, axis)
@@ -138,14 +140,18 @@ class Texture(object):
             for axis in [0, 1]:
                 small[(dtn, axis)] = np.ones(shape)
         keys = list(small.keys())
-        for x in range(nx//n):
-            for y in range(ny//n):
+        self.keys = keys #test
+        self.small = small #test
+        for x in range(nx//n-3):
+            for y in range(ny//n-3):
                 # Pick two each of direction buffers and templates
-                k = np.random.choose(keys, 2, replace=False)
-                t = np.random.choose(self.choice, 2,
-                                     replace=False, p=self.p)
+                # can't choose tuples directly, so use index to keys list
+                k = rnd.choice(len(keys), 2, replace=False)
+                t = rnd.choice(self.choice, 2, replace=False, p=self.p)
+                self.k = k #test
+                self.t = t #test
                 for i in range(2):
-                    b = small[k[i]]
+                    b = small[keys[k[i]]]
                     b[x:x+3, y:y+3] *= self.template[t[i]]
         buffer = np.ones(shape)
         for dtn in [-1, 1]:
@@ -163,6 +169,11 @@ class Texture(object):
             rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
         return self._combine(rgb, clip)
 
+def test(style, **kwargs):
+    global filt
+    filt = Texture(style=style, **kwargs)
+    im = np.ones((20,20,4))
+    res, a, b = filt.__call__(im)
 
 
 def texture_pie(ax):
@@ -171,8 +182,8 @@ def texture_pie(ax):
     tf.append(Texture(style='noise', block=8))
     tf.append(Texture(style='noise', light=True, block=2))
     tf.append(Texture(style='noise', light=True, block=6))
-    tf.append(Texture(style='hash', light=False, block=3))
-    tf.append(Texture(style='hash', light=True, block=6))
+    tf.append(Texture(style='hash2', light=False, block=3))
+    tf.append(Texture(style='hash2', light=True, block=6))
     labels = []
     labels.append('Fine Noise')
     labels.append('Coarse Noise')
@@ -192,13 +203,14 @@ def texture_pie(ax):
 
 
 if __name__=='__main__':
-    fig = plt.figure(figsize=(8,8))
-    fig.clear()
-    plt.subplots_adjust(left=0.05, right=0.95)
-
-    ax = fig.add_subplot(111)
-    ax.set_aspect(1)
-    texture_pie(ax)
-    ax.set_frame_on(True)
-
-    plt.show()
+    test('hash2')
+#    fig = plt.figure(figsize=(8,8))
+#    fig.clear()
+#    plt.subplots_adjust(left=0.05, right=0.95)
+#
+#    ax = fig.add_subplot(111)
+#    ax.set_aspect(1)
+#    texture_pie(ax)
+#    ax.set_frame_on(True)
+#
+#    plt.show()
