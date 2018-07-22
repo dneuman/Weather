@@ -39,6 +39,7 @@ class Texture(object):
             # Set up arrays and their probabilities
             self.p = 9 * [1./11] + [2./11]  # 2 chances to get blank
             self.choice = list(range(9)) + [-1]
+            self.clip = (1. - dark)**3  # clip limit (max darkness)
             blank = np.ones((3,3))
             self.template = {-1: blank.copy()}
             blank[0, 0] = 1. - dark
@@ -121,7 +122,7 @@ class Texture(object):
                 s2 = small * small
                 buffer *= np.roll(s2, dtn, axis)
                 buffer *= np.roll(s2 * small, 2 * dtn, axis)
-        np.clip(buffer, self.choice[0]**3, 1, buffer)
+        np.clip(buffer, self.clip, 1, buffer)
         self._expand(buffer, noise[..., 0])
         if self.light:
             rgb = self._light(rgb, noise[..., 0])
@@ -161,6 +162,7 @@ class Texture(object):
                 buffer *= s
                 buffer *= np.roll(s2, dtn, axis)
                 buffer *= np.roll(s2 * s, 2 * dtn, axis)
+        np.clip(buffer, self.choice[0]**3, 1, buffer)
         noise = np.ones((nx, ny, 1))
         self._expand(buffer, noise[..., 0])
         if self.light:
@@ -203,14 +205,14 @@ def texture_pie(ax):
 
 
 if __name__=='__main__':
-    test('hash2')
-#    fig = plt.figure(figsize=(8,8))
-#    fig.clear()
-#    plt.subplots_adjust(left=0.05, right=0.95)
-#
-#    ax = fig.add_subplot(111)
-#    ax.set_aspect(1)
-#    texture_pie(ax)
-#    ax.set_frame_on(True)
-#
-#    plt.show()
+#    test('hash2')
+    fig = plt.figure(figsize=(8,8))
+    fig.clear()
+    plt.subplots_adjust(left=0.05, right=0.95)
+
+    ax = fig.add_subplot(111)
+    ax.set_aspect(1)
+    texture_pie(ax)
+    ax.set_frame_on(True)
+
+    plt.show()
