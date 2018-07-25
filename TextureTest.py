@@ -37,6 +37,7 @@ class Texture(object):
             # hash2 spreads out points somewhat evenly, but random within
             # 3x3 blocks. Up to 2 points are chosen per block.
             # Set up arrays and their probabilities
+            self.dark = dark
             self.space = kwargs.get('space', 4)
             self.frac = kwargs.get('frac', .8)  # fraction of spaces to fill
             self.p = 9 * [1./11] + [2./11]  # 2 chances to get blank
@@ -184,22 +185,27 @@ class Texture(object):
     def _hash3(self, im):
         # Speed up _hash2
         n = self.block
+        space = self.space
         rgb = im[...,:3]  # (nx, ny, 3)
         clip = im[...,3]   # (nx, ny)
         nx, ny = clip.shape
         shape = (nx//n, ny//n)
         # calculate number of points to be plotted.
-        plen = shape[0]//(self.space-1) * shape[1]//(self.space-1)
+        px = (shape[0]-space+1)//space
+        py = (shape[1]-space+1)//space
+        plen = px * py
         p = np.arange(plen)
         ix = []
         iy = []
         for i in range(2): # Do this for each set of points
-            # make the indices for the point array, spread out by self.space
-            ix.append(p//(self.space-1) * self.space)
-            iy.append(p % (self.space-1) * self.space)
+            # make the indices for the point array, spread out by space
+            # if space==4, then ix goes up 0, 0, 0,... 0, 4, 4,...
+            # and y goes up 0, 4, 8,..., 0, 4, 8,...
+            ix.append((p//py) * space)
+            iy.append((p % px) * space)
             # now put them randomly in the spaces
-            ix[i] += rnd.randint(0, self.space, plen)
-            iy[i] += rnd.randint(0, self.space, plen)
+            ix[i] += rnd.randint(0, space, plen)
+            iy[i] += rnd.randint(0, space, plen)
         # a[ix, iy] will be the locations of random but evenly spread points.
         # Next step is to randomly choose these points to be given one of
         # the 4 possible directions. p is already an index into the points,
@@ -209,21 +215,22 @@ class Texture(object):
         # directions used. This makes 6 possible pairs of directions, so
         # create 2 sets of points and divide them into 6 groups by reshaping
         # the vectors into (n//6, 6) arrays.
-        r = []  # This will hold vectors of randomized indices
-        slen = (plen * self.frac)//6  # length of subsets
+        r = []  # This will hold arrays of randomized indices
+        slen = int((plen * self.frac)//6)  # length of subsets
         rlen = slen * 6  # total length of randomize indices
         for i in range(2):
             temp = rnd.choice(p, plen, replace=False)
             temp = temp[:rlen]  # truncate to needed size
-            temp.reshape((slen, 6))
-            r.append(temp.copy())
+            r.append(temp.reshape((slen, 6)))
         # Now stamp the points onto a buffer
         buffer = np.ones(shape)
         for i in range(6):
             for j in range(2):
                 sub = np.ones(shape)
                 dtn, axis = self.pairs[i][j]
-                sub[ix[j][r[:,i]], iy[j][r[:,i]]] = self.dark
+                x = ix[j][r[j][:,i]]
+                y = iy[j][r[j][:,i]]
+                sub[x, y] = 1. - self.dark
                 buffer *= sub
                 s2 = sub * sub
                 buffer *= np.roll(s2, dtn, axis)
