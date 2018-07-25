@@ -236,7 +236,7 @@ class Texture(object):
                 buffer *= np.roll(s2, dtn, axis)
                 buffer *= np.roll(s2 * sub, 2 * dtn, axis)
 
-        np.clip(buffer, self.choice[0]**3, 1, buffer)
+        np.clip(buffer, (1.-self.dark)**3, 1, buffer)
         noise = np.ones((nx, ny, 1))
         self._expand(buffer, noise[..., 0])
         if self.light:
@@ -258,8 +258,8 @@ def texture_pie(ax):
     tf.append(Texture(style='noise', block=8))
     tf.append(Texture(style='noise', light=True, block=2))
     tf.append(Texture(style='noise', light=True, block=6))
-    tf.append(Texture(style='hash2', light=False, block=3))
-    tf.append(Texture(style='hash2', light=True, block=6))
+    tf.append(Texture(style='hash3', light=False, block=1, frac=.99, space=3))
+    tf.append(Texture(style='hash3', light=True, block=6, frac=.9, space=2))
     labels = []
     labels.append('Fine Noise')
     labels.append('Coarse Noise')
@@ -279,14 +279,14 @@ def texture_pie(ax):
 
 
 if __name__=='__main__':
-    test('hash3')
-#    fig = plt.figure(figsize=(8,8))
-#    fig.clear()
-#    plt.subplots_adjust(left=0.05, right=0.95)
-#
-#    ax = fig.add_subplot(111)
-#    ax.set_aspect(1)
-#    texture_pie(ax)
-#    ax.set_frame_on(True)
-#
-#    plt.show()
+#    test('hash3')
+    fig = plt.figure(figsize=(8,8))
+    fig.clear()
+    plt.subplots_adjust(left=0.05, right=0.95)
+
+    ax = fig.add_subplot(111)
+    ax.set_aspect(1)
+    texture_pie(ax)
+    ax.set_frame_on(True)
+
+    plt.show()
