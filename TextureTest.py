@@ -30,33 +30,21 @@ class Texture(object):
             prob = kwargs.get('prob', .2)
             dark = kwargs.get('dark', .02)
         if style == 'hash':
-            prob /= 4.
-            self.choice = [1. - dark, 1.]
-            self.p = [prob, 1. - prob]
-        elif style == 'hash2' or style == 'hash3':
-            # hash2 spreads out points somewhat evenly, but random within
-            # 3x3 blocks. Up to 2 points are chosen per block.
+            # hash spreads out points somewhat evenly, but random within
+            # spaces. Up to 2 points are chosen per space.
             # Set up arrays and their probabilities
-            if not self.light: dark = kwargs.get('dark', .05)
+            if not self.light: dark = kwargs.get('dark', .04)
             self.dark = dark
             self.space = kwargs.get('space', 4)
             self.frac = kwargs.get('frac', .8)  # fraction of spaces to fill
-            self.p = 9 * [1./11] + [2./11]  # 2 chances to get blank
-            self.choice = list(range(9)) + [-1]
             self.clip = (1. - dark)**3  # clip limit (max darkness)
-            blank = np.ones((3,3))
-            self.template = {-1: blank.copy()}
-            blank[0, 0] = 1. - dark
-            for i in range(9):
-                    self.template[i] = blank
-                    blank = np.roll(blank, 1)
             # make list of directions and pairs of directions.
             # Directions are tuples of (dtn, axis) for np.roll
-            self.dtns = [(-1, 0), (-1, 1), (1, 0), (1, 1)]  # directions
+            dtns = [(-1, 0), (-1, 1), (1, 0), (1, 1)]  # directions
             self.pairs = []  # list of pairs of directions
             for i in range(3):
                 for j in range(i+1,4):
-                    self.pairs.append([self.dtns[i], self.dtns[j]])
+                    self.pairs.append([dtns[i], dtns[j]])
         else:
             self.choice = list(1. - np.array([1,2,3]) * dark) + [1.]
             self.p = 3 * [prob] + [1. - 3 * prob]
@@ -121,71 +109,8 @@ class Texture(object):
             rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
         return self._combine(rgb, clip)
 
+
     def _hash(self, im):
-        n = self.block
-        rgb = im[...,:3]  # (nx, ny, 3)
-        clip = im[...,3]   # (nx, ny)
-        nx, ny = clip.shape
-        shape = (nx//n, ny//n)
-        noise = np.ones((nx, ny, 1))
-        buffer = np.ones(shape)
-        for axis in [0, 1]:
-            for dtn in [-1, 1]:
-                small = rnd.choice(self.choice, shape, p=self.p)
-                buffer *= small
-                s2 = small * small
-                buffer *= np.roll(s2, dtn, axis)
-                buffer *= np.roll(s2 * small, 2 * dtn, axis)
-        np.clip(buffer, self.clip, 1, buffer)
-        self._expand(buffer, noise[..., 0])
-        if self.light:
-            rgb = self._light(rgb, noise[..., 0])
-        else:
-            rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
-        return self._combine(rgb, clip)
-
-    def _hash2(self, im):
-        n = self.block
-        rgb = im[...,:3]  # (nx, ny, 3)
-        clip = im[...,3]   # (nx, ny)
-        nx, ny = clip.shape
-        shape = (nx//n, ny//n)
-        small = {}
-        for dtn in [-1, 1]:
-            for axis in [0, 1]:
-                small[(dtn, axis)] = np.ones(shape)
-        keys = list(small.keys())
-        self.keys = keys #test
-        self.small = small #test
-        for x in range(nx//n-3):
-            for y in range(ny//n-3):
-                # Pick two each of direction buffers and templates
-                # can't choose tuples directly, so use index to keys list
-                k = rnd.choice(len(keys), 2, replace=False)
-                t = rnd.choice(self.choice, 2, replace=False, p=self.p)
-                self.k = k #test
-                self.t = t #test
-                for i in range(2):
-                    b = small[keys[k[i]]]
-                    b[x:x+3, y:y+3] *= self.template[t[i]]
-        buffer = np.ones(shape)
-        for dtn in [-1, 1]:
-            for axis in [0, 1]:
-                s = small[(dtn, axis)]
-                s2 = s * s
-                buffer *= s
-                buffer *= np.roll(s2, dtn, axis)
-                buffer *= np.roll(s2 * s, 2 * dtn, axis)
-        np.clip(buffer, self.choice[0]**3, 1, buffer)
-        noise = np.ones((nx, ny, 1))
-        self._expand(buffer, noise[..., 0])
-        if self.light:
-            rgb = self._light(rgb, noise[..., 0])
-        else:
-            rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
-        return self._combine(rgb, clip)
-
-    def _hash3(self, im):
         # Speed up _hash2
         n = self.block
         space = self.space
@@ -267,8 +192,8 @@ def texture_pie(ax):
     tf.append(Texture(style='noise', block=8))
     tf.append(Texture(style='noise', light=True, block=2))
     tf.append(Texture(style='noise', light=True, block=6))
-    tf.append(Texture(style='hash3', light=False, block=2, frac=.9, space=3))
-    tf.append(Texture(style='hash3', light=True, block=8, frac=.9, space=3))
+    tf.append(Texture(style='hash', light=False, block=2, frac=.9, space=3))
+    tf.append(Texture(style='hash', light=True, block=8, frac=.9, space=3))
     labels = []
     labels.append('Fine Noise')
     labels.append('Coarse Noise')
