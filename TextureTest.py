@@ -109,10 +109,12 @@ class Texture(object):
         rgb = im[...,:3]  # (nx, ny, 3)
         clip = im[...,3]   # (nx, ny)
         nx, ny = clip.shape
-        shape = (nx//n, ny//n)
-        half = rnd.choice(self.choice, shape, p=self.p)  # (nx, ny)
+        shape = (nx//n + 1, ny//n + 1)  # expand shape slightly
+        small = rnd.choice(self.choice, shape, p=self.p)  # (nx, ny)
+        large = np.ones((shape[0]*n, shape[1]*n))
+        self._expand(small, large)
         noise = np.ones((nx, ny, 1))  # (nx, ny, 1)
-        self._expand(half, noise[..., 0])
+        noise[..., 0] = large[:nx, :ny]
         if self.light:
             rgb = self._light(rgb, noise[..., 0])
         else:
