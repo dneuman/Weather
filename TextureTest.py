@@ -1,9 +1,42 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Jul 13 17:33:27 2018
+Texture Module
+**************
 
-@author: dan
+Module to add simple textures to matplotlib charts
+
+Based on the `Matplotlib agg_filter Demo
+<https://matplotlib.org/gallery/misc/demo_agg_filter.html>`_
+
+Usage
+-----
+
+Create a Texture object with the desired style and options, then supply
+this object to the ``agg_filter`` keyword in matplotlib methods. Running
+``Texture``, or ``texture_pie`` will create a sample chart with representative
+textues.::
+
+    import Texture
+    import matplotlib.pyplot as plt
+
+    filt = Texture('noise')
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.fill_between([0,1], [1,1], agg_filter=filt)
+    plt.show()
+
+Routines
+--------
+
+    * texture_pie(ax) - Demonstrate example textures
+    * test(style) - test a style without drawing (for debugging)
+
+Requires
+--------
+    * Python 3.6 (tested on Anaconda 3.6.1)
+    * Matplotlib 2.2.2
+
 """
 
 import matplotlib.pyplot as plt
