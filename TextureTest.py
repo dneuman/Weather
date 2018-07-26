@@ -37,6 +37,7 @@ class Texture(object):
             # hash2 spreads out points somewhat evenly, but random within
             # 3x3 blocks. Up to 2 points are chosen per block.
             # Set up arrays and their probabilities
+            if not self.light: dark = kwargs.get('dark', .05)
             self.dark = dark
             self.space = kwargs.get('space', 4)
             self.frac = kwargs.get('frac', .8)  # fraction of spaces to fill
@@ -189,10 +190,14 @@ class Texture(object):
         rgb = im[...,:3]  # (nx, ny, 3)
         clip = im[...,3]   # (nx, ny)
         nx, ny = clip.shape
-        shape = (nx//n, ny//n)
+        # Expand image size so it takes multiples of block and space.
+        # The buffers will be clipped later to fit into supplied size
+        shape = ((nx+n)//n, (ny+n)//n)
+        shape = ((shape[0]+(n+2)*space)//space * space,
+                 (shape[1]+(n+2)*space)//space * space)
         # calculate number of points to be plotted.
-        px = (shape[0]-space+1)//space
-        py = (shape[1]-space+1)//space
+        px = shape[0]//space
+        py = shape[1]//space
         plen = px * py
         p = np.arange(plen)
         ix = []
@@ -236,9 +241,11 @@ class Texture(object):
                 buffer *= np.roll(s2, dtn, axis)
                 buffer *= np.roll(s2 * sub, 2 * dtn, axis)
 
-        np.clip(buffer, (1.-self.dark)**3, 1, buffer)
+        np.clip(buffer, self.clip, 1, buffer)
+        large = np.ones((shape[0]*n, shape[1]*n))
+        self._expand(buffer, large)
         noise = np.ones((nx, ny, 1))
-        self._expand(buffer, noise[..., 0])
+        noise[..., 0] = large[:nx, :ny]
         if self.light:
             rgb = self._light(rgb, noise[..., 0])
         else:
@@ -258,8 +265,8 @@ def texture_pie(ax):
     tf.append(Texture(style='noise', block=8))
     tf.append(Texture(style='noise', light=True, block=2))
     tf.append(Texture(style='noise', light=True, block=6))
-    tf.append(Texture(style='hash3', light=False, block=1, frac=.99, space=3))
-    tf.append(Texture(style='hash3', light=True, block=6, frac=.9, space=2))
+    tf.append(Texture(style='hash3', light=False, block=2, frac=.9, space=3))
+    tf.append(Texture(style='hash3', light=True, block=8, frac=.9, space=3))
     labels = []
     labels.append('Fine Noise')
     labels.append('Coarse Noise')
