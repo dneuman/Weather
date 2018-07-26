@@ -26,6 +26,9 @@ textues.::
     ax.fill_between([0,1], [1,1], agg_filter=filt)
     plt.show()
 
+See ``texture_pie(ax)`` for an example of using multiple texture filters in
+one chart.
+
 Routines
 --------
 
@@ -45,16 +48,70 @@ import numpy.random as rnd
 from matplotlib.colors import LightSource
 
 class Texture(object):
-    "simple texture filter"
+    """Simple Matplotlib agg_filter textures
+
+    Usage
+    -----
+
+    Create a Texture object with the desired options, then pass this
+    object to the agg_filter keyword in matplotlib routines.
+
+    Example
+    -------
+    ::
+
+        import Texture
+        import matplotlib.pyplot as plt
+
+        filt = Texture('noise', block=4, light=True)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.fill_between([0,1], [1,1], agg_filter=filt)
+        plt.show()
+
+    Parameters
+    ----------
+
+    style : string default 'noise'
+        One of the following styles
+
+        * 'noise' - strictly random points
+        * 'hash' - small lines oriented randomly
+    block : int default 1
+        Size of the points, in pixels. Larger values give coarser textures.
+    light : bool default False
+        Use noise as a depth map and light the surface. Works best when
+        ``block`` is at least 2.
+
+    Other Options
+    -------------
+
+    'noise' : options to set amount and darkness of points
+        * prob : float (0.0 - 1.0) - probability a point will be changed
+        * dark : float (0.0 - 1.0) - how dark to make random points. Small
+          values are better.
+
+    'hash' : options to set spacing and darkness of lines
+        * space : int default 4 - roughly how far apart lines are
+        * dark : float (0.0 - 1.0) - how dark to make random points. Small
+          values are better.
+
+    light : options passed to the matplotlib.colors.LightSource.rgb_shade method.
+        * fraction : float (0.0 - 1.0) alpha value
+        * vert_exag : float amount of vertical exaggeration.
+        * blend_mode : string ['soft'|'overlay'|'hsv'] blending mode
+
+    """
 
     def __init__(self, style='noise', **kwargs):
+        """Initialize object with values to be used when called.
+        """
         self.style = style
         self.block = kwargs.get('block', 1)
         self.light = kwargs.get('light', False)
         if self.light:
             prob = kwargs.get('prob', .15)
             dark = kwargs.get('dark', .15)
-            self.fraction = kwargs.get('fraction', 0.2)
             self.vert = kwargs.get('vert_exag', 2.)
             self.blend = kwargs.get('blend_mode', 'soft')
             self.fraction = kwargs.get('fraction', .5)
@@ -84,10 +141,11 @@ class Texture(object):
         self.kwargs = kwargs
 
     def __call__(self, im, dpi=100):
+        """Main call routine, which passes image to other routines for
+           processing.
+        """
         if self.style == 'noise': return self._noise(im), 0, 0
         if self.style == 'hash': return self._hash(im), 0, 0
-        if self.style == 'hash2': return self._hash2(im), 0, 0
-        if self.style == 'hash3': return self._hash3(im), 0, 0
         return im, 0, 0  # Do nothing if style not found
 
     def _expand(self, small, large):
@@ -126,6 +184,9 @@ class Texture(object):
         return rgb2
 
     def _noise(self, im):
+        """ Simple noise texture with block and light support. Points are
+            one of three darkness levels.
+        """
         n = self.block
         rgb = im[...,:3]  # (nx, ny, 3)
         clip = im[...,3]   # (nx, ny)
@@ -144,7 +205,8 @@ class Texture(object):
 
 
     def _hash(self, im):
-        # Speed up _hash2
+        """Similar to 'noise', but using small lines instead of points
+        """
         n = self.block
         space = self.space
         rgb = im[...,:3]  # (nx, ny, 3)
@@ -174,7 +236,7 @@ class Texture(object):
         # a[ix, iy] will be the locations of random but evenly spread points.
         # Next step is to randomly choose these points to be given one of
         # the 4 possible directions. p is already an index into the points,
-        # so just scramble it up and divide into 4 groups. Choosing fewer
+        # so just scramble p up and divide into 4 groups. Choosing fewer
         # points will create blank spots.
         # But I want 2 points per space, and I don't want to repeat the
         # directions used. This makes 6 possible pairs of directions, so
@@ -213,6 +275,10 @@ class Texture(object):
         return self._combine(rgb, clip)
 
 def test(style, **kwargs):
+    """ Simple test rig to get interpreter exceptions. Matplotlib will not
+        raise exceptions when actually drawing, so use this to debug if
+        the matplotlib code results in a blank window.
+    """
     global filt
     filt = Texture(style=style, **kwargs)
     im = np.ones((20,20,4))
@@ -220,6 +286,9 @@ def test(style, **kwargs):
 
 
 def texture_pie(ax):
+    """ Demonstration routine showing multiple examples of textures and
+        how to make them.
+    """
     tf = []
     tf.append(Texture(style='noise', block=2))
     tf.append(Texture(style='noise', block=8))
