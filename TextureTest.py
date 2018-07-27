@@ -20,10 +20,12 @@ textues.::
     import Texture
     import matplotlib.pyplot as plt
 
-    filt = Texture('noise')
+    filt1 = Texture('noise')
+    filt2 = Texture('hash', block=2, light=True)
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.fill_between([0,1], [1,1], agg_filter=filt)
+    ax.fill_between([0,1], [1,1], agg_filter=filt1)
+    ax.fill_between([1,2], [1,1], agg_filter=filt2)
     plt.show()
 
 See ``texture_pie(ax)`` for an example of using multiple texture filters in
