@@ -17,7 +17,7 @@ this object to the ``agg_filter`` keyword in matplotlib methods. Running
 ``Texture``, or ``texture_pie`` will create a sample chart with representative
 textues.::
 
-    import Texture
+    from Texture import Texture
     import matplotlib.pyplot as plt
 
     filt1 = Texture('noise')
