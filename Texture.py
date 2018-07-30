@@ -79,6 +79,7 @@ class Texture(object):
 
         * 'noise' - strictly random points
         * 'hash' - small lines oriented randomly
+        * 'shadow' - create background shadow
     block : int default 1
         Size of the points, in pixels. Larger values give coarser textures.
     light : bool default False
@@ -109,6 +110,14 @@ class Texture(object):
         """Initialize object with values to be used when called.
         """
         self.style = style
+        if style == 'shadow':
+            self.direction = kwargs.get('direction', 'up')
+            self.pad = kwargs.get('pad', .5)
+            self.alpha = kwargs.get('alpha', .5)
+            self.color = kwargs.get('color', (0, 0, 0))
+            self.cut_figure = kwargs.get('cut_figure', True)
+            self.offset = kwargs.get('offset', (0, 0))
+            return
         self.block = kwargs.get('block', 1)
         self.light = kwargs.get('light', False)
         if self.light:
@@ -275,6 +284,56 @@ class Texture(object):
         else:
             rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
         return self._combine(rgb, clip)
+
+    def _shadow(self, im, dpi):
+        """Create a drop shadow from the supplied image
+        """
+        # rgb = im[...,:3]  # (nx, ny, 3) (unused)
+        alpha = im[...,3]   # (nx, ny)
+        nx, ny = alpha.shape
+        isup = (self.direction == 'up')
+        # Calculate and apply padding to image
+        pix = self.pad * dpi
+        if isup == 'up':
+            padded = np.zeros((nx, ny+pix))
+            xs = ys = 0  # image start location
+        else:
+            padded = np.zeros((nx + 2*pix, ny + 2*pix))
+            xs = ys = pix
+        # padded starts with chart object shape which gets blurred (smoothed).
+        # It will then become the alpha channel for the expanded image.
+        padded[xs:nx+xs, ys:ny+ys] = alpha
+        # Create window for smoothing
+        w = np.hamming(2 * pix + 1)
+        if isup:
+            w = w[:pix+1]  # just get beginning of window
+        w /= w.sum()  # normalize
+        wlen = len(w)
+        # Smoth image in appropriate directions
+        for x in range(padded.shape[0]):  # vertical
+            y = padded[x, :]
+            # add some additional padding for the convolution
+            s = np.r_[2*y[0] - y[wlen:1:-1], y, 2*y[-1] - y[-1:-wlen:-1]]
+            ys = np.convolve(w, s, mode='same')
+            padded[x, :] = ys[wlen-1:-wlen+1]
+        if not isup:
+            for y in range(padded.shape[1]):  # horizontal
+                x = padded[:, y]
+                # add some additional padding for the convolution
+                s = np.r_[2*x[0] - x[wlen:1:-1], x, 2*x[-1] - x[-1:-wlen:-1]]
+                xs = np.convolve(w, s, mode='same')
+                padded[:, y] = xs[wlen-1:-wlen+1]
+        # Cut out original figure if desired
+        if self.cut_figure:
+            reverse = 1. - alpha
+            padded[xs:nx+xs, ys:ny+ys] *= reverse
+        # Return image
+        rgb = np.ones((padded.shape[0], padded.shape[1], 3)) * self.color
+        padded *= self.alpha
+        new_im = self._combine(rgb, padded)
+        return new_im, self.offset[0] * dpi, self.offset[1] * dpi
+
+
 
 def test(style, **kwargs):
     """ Simple test rig to get interpreter exceptions. Matplotlib will not
