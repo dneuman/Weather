@@ -1100,6 +1100,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     useTrend = bool(trend['trend'])
     if not column: column = df.tmx  # set default value
     tfilt = Texture('noise', block=2, light=True)
+    tshadow = Texture('shadow', pad=.1, alpha=1., cut_figure=False)
 
     fig = plt.figure(df.city+'_DayCount')
     fig.clear()
@@ -1192,6 +1193,8 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
             ax.fill_between(data.index, data[p].values,
                             color=cmap[p], alpha=fa, label='',
                             agg_filter=tfilt)
+            ax.plot(data.index, data[p].values, color='k', lw=.5,
+                    agg_filter=tshadow)
             AddLegend(cmap[p], tmap[p])
         if useTrend:
             for p in plotOrd:
@@ -2091,6 +2094,7 @@ def Histograms(df, col=WxDF.tmx, months=None,
     pos = list(range(len(ranges)))  # position on the axes
     pos = pos[::-1] # reverse order for plotting
     tfilt = Texture('noise', block=2, light=True)  # texture filter
+    tshadow = Texture('shadow', pad=.2, cut_figure=False, alpha=.7)
 
     # Set up the figure
     fig = plt.figure(df.city+'_Histogram '+df.columns[col])
@@ -2253,6 +2257,8 @@ def Histograms(df, col=WxDF.tmx, months=None,
             ax.fill_between(x, sf[c].values, p, color=st.colors[col],
                             zorder=20-p, agg_filter=tfilt)
         ax.plot(sf[c], lw=2, color='k', zorder=20-p)
+        ax.plot(sf[c], lw=2, color='k', zorder=20-p-.1,
+                agg_filter=tshadow)
         if showMedian:
             i = int(np.round((medians[c]-minb)*10))
             ax.vlines(x[i], p, sf[c].iloc[i], linestyle=':',
