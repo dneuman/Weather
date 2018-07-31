@@ -307,23 +307,23 @@ class Texture(object):
         # Create window for smoothing
         w = np.hamming(2 * pix + 1)
         if isup:
-            w = w[:pix+1]  # just get beginning of window
+            w[pix+1:] = 0 # just get beginning of window
         w /= w.sum()  # normalize
         wlen = len(w)
         # Smoth image in appropriate directions
-        for x in range(padded.shape[0]):  # vertical
-            y = padded[x, :]
-            # add some additional padding for the convolution
-            c = np.r_[2*y[0] - y[wlen:1:-1], y, 2*y[-1] - y[-1:-wlen:-1]]
-            yc = np.convolve(w, c, mode='same')
-            padded[x, :] = yc[wlen-1:-wlen+1]
         if not isup:
-            for y in range(padded.shape[1]):  # horizontal
-                x = padded[:, y]
+            for x in range(padded.shape[0]):  # vertical
+                y = padded[x, :]
                 # add some additional padding for the convolution
-                c = np.r_[2*x[0] - x[wlen:1:-1], x, 2*x[-1] - x[-1:-wlen:-1]]
-                xc = np.convolve(w, c, mode='same')
-                padded[:, y] = xc[wlen-1:-wlen+1]
+                c = np.r_[2*y[0] - y[wlen:1:-1], y, 2*y[-1] - y[-1:-wlen:-1]]
+                yc = np.convolve(w, c, mode='same')
+                padded[x, :] = yc[wlen-1:-wlen+1]
+        for y in range(padded.shape[1]):  # horizontal
+            x = padded[:, y]
+            # add some additional padding for the convolution
+            c = np.r_[2*x[0] - x[wlen:1:-1], x, 2*x[-1] - x[-1:-wlen:-1]]
+            xc = np.convolve(w, c, mode='same')
+            padded[:, y] = xc[wlen-1:-wlen+1]
         # Cut out original figure if desired
         if self.cut_figure:
             reverse = 1. - alpha
@@ -332,7 +332,9 @@ class Texture(object):
         rgb = np.ones((padded.shape[0], padded.shape[1], 3)) * self.color
         padded *= self.alpha
         new_im = self._combine(rgb, padded)
-        return new_im, self.offset[0] * dpi - xs, self.offset[1] * dpi - ys
+        return (new_im,
+                self.offset[0] * dpi - xs,
+                self.offset[1] * dpi - ys)
 
 
 
@@ -349,7 +351,8 @@ def test(style, **kwargs):
 def shadow_line(ax):
     """Demonstration of drop shadows.
     """
-    sfilt = Texture('shadow', alpha=1., pad=.5)
+    sfilt = Texture('shadow', alpha=1., pad=.75,
+                    cut_figure=False, direction='up')
     x = [0, 1]
     y = [0, 1]
     ax.plot(x, y)
@@ -391,7 +394,7 @@ if __name__=='__main__':
     if __testing not in demos:
         test(__testing)
     else:
-        fig = plt.figure(figsize=(8,8))
+        fig = plt.figure('Texture Demo', figsize=(8,8))
         fig.clear()
         plt.subplots_adjust(left=0.05, right=0.95)
 
