@@ -157,6 +157,7 @@ class Texture(object):
         """
         if self.style == 'noise': return self._noise(im), 0, 0
         if self.style == 'hash': return self._hash(im), 0, 0
+        if self.style == 'shadow': return self._shadow(im, dpi)
         return im, 0, 0  # Do nothing if style not found
 
     def _expand(self, small, large):
@@ -293,7 +294,7 @@ class Texture(object):
         nx, ny = alpha.shape
         isup = (self.direction == 'up')
         # Calculate and apply padding to image
-        pix = self.pad * dpi
+        pix = int(self.pad * dpi)
         if isup == 'up':
             padded = np.zeros((nx, ny+pix))
             xs = ys = 0  # image start location
@@ -313,16 +314,16 @@ class Texture(object):
         for x in range(padded.shape[0]):  # vertical
             y = padded[x, :]
             # add some additional padding for the convolution
-            s = np.r_[2*y[0] - y[wlen:1:-1], y, 2*y[-1] - y[-1:-wlen:-1]]
-            ys = np.convolve(w, s, mode='same')
-            padded[x, :] = ys[wlen-1:-wlen+1]
+            c = np.r_[2*y[0] - y[wlen:1:-1], y, 2*y[-1] - y[-1:-wlen:-1]]
+            yc = np.convolve(w, c, mode='same')
+            padded[x, :] = yc[wlen-1:-wlen+1]
         if not isup:
             for y in range(padded.shape[1]):  # horizontal
                 x = padded[:, y]
                 # add some additional padding for the convolution
-                s = np.r_[2*x[0] - x[wlen:1:-1], x, 2*x[-1] - x[-1:-wlen:-1]]
-                xs = np.convolve(w, s, mode='same')
-                padded[:, y] = xs[wlen-1:-wlen+1]
+                c = np.r_[2*x[0] - x[wlen:1:-1], x, 2*x[-1] - x[-1:-wlen:-1]]
+                xc = np.convolve(w, c, mode='same')
+                padded[:, y] = xc[wlen-1:-wlen+1]
         # Cut out original figure if desired
         if self.cut_figure:
             reverse = 1. - alpha
@@ -331,7 +332,7 @@ class Texture(object):
         rgb = np.ones((padded.shape[0], padded.shape[1], 3)) * self.color
         padded *= self.alpha
         new_im = self._combine(rgb, padded)
-        return new_im, self.offset[0] * dpi, self.offset[1] * dpi
+        return new_im, self.offset[0] * dpi - xs, self.offset[1] * dpi - ys
 
 
 
@@ -345,6 +346,14 @@ def test(style, **kwargs):
     im = np.ones((20,20,4))
     res, a, b = filt.__call__(im)
 
+def shadow_line(ax):
+    """Demonstration of drop shadows.
+    """
+    sfilt = Texture('shadow', alpha=1., pad=.5)
+    x = [0, 1]
+    y = [0, 1]
+    ax.plot(x, y)
+    ax.plot(x, y, agg_filter=sfilt)
 
 def texture_pie(ax):
     """ Demonstration routine showing multiple examples of textures and
@@ -376,14 +385,22 @@ def texture_pie(ax):
 
 
 if __name__=='__main__':
-#    test('hash3')
-    fig = plt.figure(figsize=(8,8))
-    fig.clear()
-    plt.subplots_adjust(left=0.05, right=0.95)
+    demos = ['pie', 'line']
+    if '__testing' not in globals():
+        __testing = demos[0]
+    if __testing not in demos:
+        test(__testing)
+    else:
+        fig = plt.figure(figsize=(8,8))
+        fig.clear()
+        plt.subplots_adjust(left=0.05, right=0.95)
 
-    ax = fig.add_subplot(111)
-    ax.set_aspect(1)
-    texture_pie(ax)
-    ax.set_frame_on(True)
+        ax = fig.add_subplot(111)
+        ax.set_aspect(1)
+        if __testing == 'line':
+            shadow_line(ax)
+        else:
+            texture_pie(ax)
+        ax.set_frame_on(True)
 
-    plt.show()
+        plt.show()
