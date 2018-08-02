@@ -1100,7 +1100,7 @@ def DayCountPlot(df, use = [0,1,2,3,4,5,6,7], column=None, style='fill',
     useTrend = bool(trend['trend'])
     if not column: column = df.tmx  # set default value
     tfilt = Texture('noise', block=2, light=True)
-    tshadow = Texture('shadow', pad=.1, alpha=1., cut_figure=False)
+    tshadow = Texture('shadow', pad=.2, alpha=0.4, cut_figure=False)
 
     fig = plt.figure(df.city+'_DayCount')
     fig.clear()
