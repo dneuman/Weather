@@ -66,8 +66,10 @@ class Texture(object):
         import matplotlib.pyplot as plt
 
         filt = Texture('noise', block=4, light=True)
+        shadow = Texture('shadow', pad=.5, offset=(-.25, .25))
         fig = plt.figure()
         ax = fig.add_subplot(111)
+        ax.fill_between([0,1], [1,1], agg_filter=shadow)  # create shadow first
         ax.fill_between([0,1], [1,1], agg_filter=filt)
         plt.show()
 
@@ -103,6 +105,17 @@ class Texture(object):
         * fraction : float (0.0 - 1.0) alpha value
         * vert_exag : float amount of vertical exaggeration.
         * blend_mode : string ['soft'|'overlay'|'hsv'] blending mode
+
+    shadow : options to define the shadow. Supplied object becomes the shadow.
+        * direction : ['up'|'all'] Use 'up' for upward shadows
+        * pad : float 0.5 How large to make the shadow (screen inches)
+        * alpha : float 0.5 How dark to make the shadow
+        * color : (0, 0, 0) Color to use for shadow
+        * cut_figure : False Remove shape from shadow (use if main object
+            is semi-transparent).
+        * offset : (0, 0) Where to offset shadow (screen inches)
+        * win : ['gaussian'|'hanning'] Shadow type. 'hanning' gives more
+            spread-out shadow, 'gaussian' is more realistic.
 
     """
 
@@ -179,11 +192,11 @@ class Texture(object):
             for b in range(n):
                 large[a:nx-dx:n, b:ny-dy:n] = small
 
-    def _combine(self, rgb, clip):  # return new array with rgb and clip
-        nx, ny = clip.shape
+    def _combine(self, rgb, alpha):  # return new array with rgb and alpha
+        nx, ny = alpha.shape
         tgt = np.empty((nx, ny, 4))
         tgt[..., :3] = rgb
-        tgt[..., 3] = clip
+        tgt[..., 3] = alpha
         return tgt
 
     def _light(self, rgb, elevation):
@@ -202,8 +215,8 @@ class Texture(object):
         """
         n = self.block
         rgb = im[...,:3]  # (nx, ny, 3)
-        clip = im[...,3]   # (nx, ny)
-        nx, ny = clip.shape
+        alpha = im[...,3]   # (nx, ny)
+        nx, ny = alpha.shape
         shape = (nx//n + 1, ny//n + 1)  # expand shape slightly
         small = rnd.choice(self.choice, shape, p=self.p)  # (nx, ny)
         large = np.ones((shape[0]*n, shape[1]*n))
@@ -214,7 +227,7 @@ class Texture(object):
             rgb = self._light(rgb, noise[..., 0])
         else:
             rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
-        return self._combine(rgb, clip)
+        return self._combine(rgb, alpha)
 
 
     def _hash(self, im):
@@ -223,8 +236,8 @@ class Texture(object):
         n = self.block
         space = self.space
         rgb = im[...,:3]  # (nx, ny, 3)
-        clip = im[...,3]   # (nx, ny)
-        nx, ny = clip.shape
+        alpha = im[...,3]   # (nx, ny)
+        nx, ny = alpha.shape
         # Expand image size so it takes multiples of block and space.
         # The buffers will be clipped later to fit into supplied size
         shape = ((nx+n)//n, (ny+n)//n)
@@ -285,7 +298,7 @@ class Texture(object):
             rgb = self._light(rgb, noise[..., 0])
         else:
             rgb *= noise  # (nx, ny, 3) = (nx, ny, 3) * (nx, ny, 1)
-        return self._combine(rgb, clip)
+        return self._combine(rgb, alpha)
 
     def _shadow(self, im, dpi):
         """Create a drop shadow from the supplied image
@@ -334,12 +347,12 @@ class Texture(object):
         # Note no extra padding is used on convolutions, so may cause
         # artifacts for edge cases. See arg_filter demo for example.
         if not is_up:
-            for x in range(padded.shape[0]):  # vertical
+            for x in range(padded.shape[0]):  # horizontal
                 y = padded[x, :]
                 # add some additional padding for the convolution
                 yc = np.convolve(w, y, mode='same')
                 padded[x, :] = yc
-        for y in range(padded.shape[1]):  # horizontal
+        for y in range(padded.shape[1]):  # vertical
             x = padded[:, y]
             # add some additional padding for the convolution
             xc = np.convolve(w, x, mode='same')
