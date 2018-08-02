@@ -115,8 +115,9 @@ class Texture(object):
             self.pad = kwargs.get('pad', .5)
             self.alpha = kwargs.get('alpha', .5)
             self.color = kwargs.get('color', (0, 0, 0))
-            self.cut_figure = kwargs.get('cut_figure', True)
+            self.cut_figure = kwargs.get('cut_figure', False)
             self.offset = kwargs.get('offset', (0, 0))
+            self.win = kwargs.get('win', 'gaussian')
             return
         self.block = kwargs.get('block', 1)
         self.light = kwargs.get('light', False)
@@ -289,45 +290,69 @@ class Texture(object):
     def _shadow(self, im, dpi):
         """Create a drop shadow from the supplied image
         """
-        # rgb = im[...,:3]  # (nx, ny, 3) (unused)
+        def gaussian(n=50, lim=3):
+            """ Gaussian window, with endpoints near 0. ``lim`` controls
+                how narrow the peak is, and how 'tight' the shadow becomes.
+                A larger value is narrower, with more of the shadow closer
+                to the object.
+            """
+            x = np.linspace(-lim, lim, n)
+            s = -0.5 * x**2
+            y = np.exp(s)
+            y -= y[0] - .01
+            y /= y.max()
+            return y
+
         alpha = im[...,3]   # (nx, ny)
         nx, ny = alpha.shape
-        isup = (self.direction == 'up')
+        is_up = (self.direction == 'up')
+
         # Calculate and apply padding to image
         pix = int(self.pad * dpi)
-        if isup == 'up':
+        if is_up == 'up':
             padded = np.zeros((nx, ny+pix))
             xs = ys = 0  # image start location
         else:
             padded = np.zeros((nx + 2*pix, ny + 2*pix))
             xs = ys = pix
+
         # padded starts with chart object shape which gets blurred (smoothed).
         # It will then become the alpha channel for the expanded image.
         padded[xs:nx+xs, ys:ny+ys] = alpha
+
         # Create window for smoothing
-        w = np.hamming(2 * pix + 1)
-        if isup:
-            w[pix+1:] = 0 # just get beginning of window
+        # Hanning is used instead of Hamming to reduce abruptness at ends
+        if self.win == 'gaussian':
+            w = gaussian(2 * pix + 1)
+        else:
+            w = np.hanning(2 * pix + 1) + .01
+        if is_up:
+            w[pix+1:] = 0 # just use beginning of window
         w /= w.sum()  # normalize
-        wlen = len(w)
+
         # Smoth image in appropriate directions
-        if not isup:
+        # Note no extra padding is used on convolutions, so may cause
+        # artifacts for edge cases. See arg_filter demo for example.
+        if not is_up:
             for x in range(padded.shape[0]):  # vertical
                 y = padded[x, :]
                 # add some additional padding for the convolution
-                c = np.r_[2*y[0] - y[wlen:1:-1], y, 2*y[-1] - y[-1:-wlen:-1]]
-                yc = np.convolve(w, c, mode='same')
-                padded[x, :] = yc[wlen-1:-wlen+1]
+                yc = np.convolve(w, y, mode='same')
+                padded[x, :] = yc
         for y in range(padded.shape[1]):  # horizontal
             x = padded[:, y]
             # add some additional padding for the convolution
-            c = np.r_[2*x[0] - x[wlen:1:-1], x, 2*x[-1] - x[-1:-wlen:-1]]
-            xc = np.convolve(w, c, mode='same')
-            padded[:, y] = xc[wlen-1:-wlen+1]
+            xc = np.convolve(w, x, mode='same')
+            padded[:, y] = xc
+
+        # Normalize padded so that it has uniform darkness between figures
+        padded /= padded.max()
+
         # Cut out original figure if desired
         if self.cut_figure:
             reverse = 1. - alpha
             padded[xs:nx+xs, ys:ny+ys] *= reverse
+
         # Return image
         rgb = np.ones((padded.shape[0], padded.shape[1], 3)) * self.color
         padded *= self.alpha
@@ -336,6 +361,29 @@ class Texture(object):
                 self.offset[0] * dpi - xs,
                 self.offset[1] * dpi - ys)
 
+def wintest(lim=3):
+    """ Show difference between a Hanning window and a Gaussian window.
+        ``lim`` controls width of gaussian peak.
+    """
+
+    def gaussian(n=50, lim=3):
+        x = np.linspace(-lim, lim, n)
+        s = -0.5 * x**2
+        y = np.exp(s)
+        y -= y[0] - .01
+        y /= y.max()
+        return y
+
+    fig = plt.figure(1)
+    fig.clear()
+    ax = fig.add_subplot(111)
+    n = 40
+    wh = np.hanning(n)
+    wg = gaussian(n, lim)
+    ax.plot(wh, label='Hanning')
+    ax.plot(wg, label='Gaussian')
+    plt.legend()
+    plt.show()
 
 
 def test(style, **kwargs):
@@ -351,12 +399,27 @@ def test(style, **kwargs):
 def shadow_line(ax):
     """Demonstration of drop shadows.
     """
-    sfilt = Texture('shadow', alpha=1., pad=.75,
-                    cut_figure=False, direction='up')
-    x = [0, 1]
+    filtH = Texture('shadow', alpha=0.5, pad=.5,
+                    cut_figure=False, direction='all',
+                    offset=(.1, .2), win='hanning')
+    filtG = Texture('shadow', alpha=0.5, pad=.5,
+                    cut_figure=False, direction='all',
+                    offset=(.1, .2), win='gaussian')
+    filtU = Texture('shadow', alpha=0.5, pad=.5,
+                    cut_figure=True, direction='up',
+                    offset=(0., 0.), win='gaussian')
+
+    xH = np.array([0, 1])
+    xG = xH + .5
+    xU = xH + 1
     y = [0, 1]
-    ax.plot(x, y)
-    ax.plot(x, y, agg_filter=sfilt)
+    ax.plot(xH, y, lw=7, zorder=10, label='Hanning')
+    ax.plot(xH, y, lw=7, zorder=9, agg_filter=filtH)
+    ax.plot(xG, y, lw=7, zorder=10, label='Gaussian')
+    ax.plot(xG, y, lw=7, zorder=9, agg_filter=filtG)
+    ax.plot(xU, y, lw=7, zorder=10, label='Up Gaussian')
+    ax.plot(xU, y, lw=7, zorder=9, agg_filter=filtU)
+    plt.legend()
 
 def texture_pie(ax):
     """ Demonstration routine showing multiple examples of textures and
