@@ -2260,12 +2260,27 @@ def Histograms(df, col=WxDF.tmx, months=None,
         ax.plot(sf[c], lw=2, color='k', zorder=20-p-.1,
                 agg_filter=tshadow)
         if showMedian:
-            i = int(np.round((medians[c]-minb)*10))
-            ax.vlines(x[i], p, sf[c].iloc[i], linestyle=':',
+            # ``i`` will be rounded to the nearest 10th of a degree
+            md = int(np.round((medians[c]-minb)*10))
+            ax.vlines(x[md], p, sf[c].iloc[md], linestyle=':',
                       color=bgcolor, alpha=.5, lw=2, zorder=20-p)
-            i = int(np.round((means[c]-minb)*10))
-            ax.vlines(x[i], p, sf[c].iloc[i], linestyle='--',
+            mn = int(np.round((means[c]-minb)*10))
+            ax.vlines(x[mn], p, sf[c].iloc[mn], linestyle='--',
                       color=bgcolor, alpha=.5, lw=2, zorder=20-p)
+    if showMedian:  # label last histogram
+        title = ['Mean', 'Median']
+        xdel = [-1, 1]
+        xpos = [x[mn], x[md]]
+        ypos = .2
+        align = ['right', 'left']
+        left = 0
+        right = 1
+        if xpos[0] > xpos[1]:
+            left, right = right, left
+        for i in [left, right]:
+            ax.text(xpos[i]+xdel[i], ypos, title[i], color=bgcolor,
+                        zorder=30, alpha=.75, size='medium',
+                        ha = align[i], va='bottom')
 
 # Alternate approach using existing functions, but lacks options
 #    parts = ax.violinplot(data, pos, points=100, vert=False, widths=6.0,
@@ -2292,15 +2307,6 @@ def Histograms(df, col=WxDF.tmx, months=None,
     ax.tick_params(axis='y', labelcolor=(0,0,0,0))
     ax.tick_params(axis='y', color=(0,0,0,0))
     at.Attribute(ha='left', source=st.source)
-    if showMedian:
-        handles = []
-        line = mlines.Line2D([], [], color='k', linestyle=':',
-                             lw=2, label='Median')
-        handles.append(line)
-        line = mlines.Line2D([], [], color='k', linestyle='--',
-                             lw=2, label='Mean')
-        handles.append(line)
-        plt.legend(handles=handles)
     plt.show()
 
 
