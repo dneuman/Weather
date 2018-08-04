@@ -35,6 +35,7 @@ Routines
 --------
 
     * texture_pie(ax) - Demonstrate example textures
+    * shadow_line(ax) - Demonstrate shadows
     * test(style) - test a style without drawing (for debugging)
 
 Requires
@@ -62,7 +63,7 @@ class Texture(object):
     -------
     ::
 
-        import Texture
+        from Texture import Texture
         import matplotlib.pyplot as plt
 
         filt = Texture('noise', block=4, light=True)
