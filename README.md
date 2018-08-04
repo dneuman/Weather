@@ -29,6 +29,11 @@ Cleaning up existing charts to look better.
 * ~~The initializing weather stations and cities will be put into a text file loaded at the beginning to add more flexibility. Change a file, rather than changing the source code. I may do the same with the basepath variable, or determine from code location.~~
 * ~~Considering making a subclass of DataFrames to hold city descriptive info together with the data. May be just simpler to add attributes to data when loading.~~
 
+**Update**: (4Aug18) After a post-New Year's hiatus, back working on this. A few notable changes: 
+* All charts accept a default dictionary for the smoothing routines;
+* A histogram chart was added that shows temperature and precipitation distributions over each decade; and
+* A Texture module was added so that charts can have textures and shadows to improve appearance.
+
 **Update**: (25Oct17) Much work completed. DataFrames subclassed to WxDF (probably won't subclass Series, since I'm usually doing all work on the original dataframe). This was a challenge since I wasn't creating a blank object on creation and I couldn't find examples that helped. Started a cities.csv table to simplify using with multiple cities. Moved annotation code to a separate Annotate module. Added a chart that shows historical stats for a particular month.
 
 **Update**: (27Sep17) Added padding option to all smoothing functions. This significantly improves performance at the start and end of the data. Padding consists of reflecting the data around the first and last points. This has the side-effect of causing the trend lines to end up being horizontal (zero slope) at the start and end. However, on the test data it doesn't look too bad. Lowess requires significantly more points to get similar performance as the other methods (50 vs 31 point window). Lowess linear and SSA one component are very similar and the least wavy. Weighted Moving Average, Lowess binomial, and SSA two component are very similar, and follow the data more closely.
