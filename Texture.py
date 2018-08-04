@@ -437,29 +437,28 @@ def shadow_line(ax):
 
 def texture_pie(ax):
     """ Demonstration routine showing multiple examples of textures and
-        how to make them.
+        how to make them. If you only want one texture, you can just use
+        ``agg_filter=my_texture`` when drawing the first time.
     """
-    tf = []
-    tf.append(Texture(style='noise', block=2))
-    tf.append(Texture(style='noise', block=8))
-    tf.append(Texture(style='noise', light=True, block=2))
-    tf.append(Texture(style='noise', light=True, block=6))
-    tf.append(Texture(style='hash', light=False, block=2, frac=.9, space=3))
-    tf.append(Texture(style='hash', light=True, block=8, frac=.9, space=3))
-    labels = []
-    labels.append('Fine Noise')
-    labels.append('Coarse Noise')
-    labels.append('Shaded Noise')
-    labels.append('Shaded\nCoarse Noise')
-    labels.append('Fine Hash')
-    labels.append('Shaded\nCoarse Hash')
+    tf = {}  # holds multiple Texture filter objects
+    tf['Fine Noise'] = Texture(style='noise', block=2)
+    tf['Coarse Noise'] = Texture(style='noise', block=8)
+    tf['Shaded Noise'] = Texture(style='noise', light=True, block=2)
+    tf['Shaded\nCoarse Noise'] = Texture(style='noise', light=True, block=6)
+    tf['Fine Hash'] = Texture(style='hash', light=False,
+                              block=2, frac=.9, space=3)
+    tf['Shaded\nCoarse Hash'] = Texture(style='hash', light=True,
+                                        block=8, frac=.9, space=3)
+    labels = list(tf.keys())
+    tprops = {'ha': 'center'}  # text properties for the labels
 
-    fracs = len(tf) * [10]
-    explode = tuple([0.05] + (len(tf) - 1) * [0])
-    pies = ax.pie(fracs, explode=explode, labels=labels, labeldistance=0.7)
+    fracs = len(tf) * [10]  # pie widths (all the same, here)
+    explode = tuple([0.05] + (len(tf) - 1) * [0])  # push 1st wedge out
+    pies = ax.pie(fracs, explode=explode, labels=labels,
+                  labeldistance=0.7, textprops=tprops)
 
-    for pie, texture_filter in zip(pies[0], tf):
-        pie.set_agg_filter(texture_filter)
+    for pie, label in zip(pies[0], labels):
+        pie.set_agg_filter(tf[label])
         pie.set_rasterized(True)  # to support mixed-mode renderers
         pie.set(ec="none", lw=2)
 
