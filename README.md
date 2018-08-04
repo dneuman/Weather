@@ -32,7 +32,7 @@ Cleaning up existing charts to look better.
 **Update**: (4Aug18) After a post-New Year's hiatus, back working on this. A few notable changes: 
 * All charts accept a default dictionary for the smoothing routines;
 * A histogram chart was added that shows temperature and precipitation distributions over each decade; and
-* A Texture module was added so that charts can have textures and shadows to improve appearance.
+* A Texture module was added so that charts can have textures and shadows to improve appearance. This module will probably be moved to its own repository once I've generalized the features. Tiling from image files is probably the main feature to add.
 
 **Update**: (25Oct17) Much work completed. DataFrames subclassed to WxDF (probably won't subclass Series, since I'm usually doing all work on the original dataframe). This was a challenge since I wasn't creating a blank object on creation and I couldn't find examples that helped. Started a cities.csv table to simplify using with multiple cities. Moved annotation code to a separate Annotate module. Added a chart that shows historical stats for a particular month.
 
