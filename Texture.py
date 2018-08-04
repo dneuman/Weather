@@ -29,7 +29,7 @@ textues.::
     plt.show()
 
 See ``texture_pie(ax)`` for an example of using multiple texture filters in
-one chart.
+one chart. See ``shadow_line(ax)`` for an example of using shadows.
 
 Routines
 --------
@@ -52,27 +52,6 @@ from matplotlib.colors import LightSource
 
 class Texture(object):
     """Simple Matplotlib agg_filter textures
-
-    Usage
-    -----
-
-    Create a Texture object with the desired options, then pass this
-    object to the agg_filter keyword in matplotlib routines.
-
-    Example
-    -------
-    ::
-
-        from Texture import Texture
-        import matplotlib.pyplot as plt
-
-        filt = Texture('noise', block=4, light=True)
-        shadow = Texture('shadow', pad=.5, offset=(-.25, .25))
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.fill_between([0,1], [1,1], agg_filter=shadow)  # create shadow first
-        ax.fill_between([0,1], [1,1], agg_filter=filt)
-        plt.show()
 
     Parameters
     ----------
@@ -109,7 +88,7 @@ class Texture(object):
 
     shadow : options to define the shadow. Supplied object becomes the shadow.
         * direction : ['up'|'all'] Use 'up' for upward shadows
-        * pad : float 0.5 How large to make the shadow (screen inches)
+        * width : float 0.5 How large to make the shadow (screen inches)
         * alpha : float 0.5 How dark to make the shadow
         * color : (0, 0, 0) Color to use for shadow
         * cut_figure : False Remove shape from shadow (use if main object
@@ -117,6 +96,27 @@ class Texture(object):
         * offset : (0, 0) Where to offset shadow (screen inches)
         * win : ['gaussian'|'hanning'] Shadow type. 'hanning' gives more
             spread-out shadow, 'gaussian' is more realistic.
+
+    Usage
+    -----
+
+    Create a Texture object with the desired options, then pass this
+    object to the agg_filter keyword in matplotlib routines.
+
+    Example
+    -------
+    ::
+
+        from Texture import Texture
+        import matplotlib.pyplot as plt
+
+        filt = Texture('noise', block=4, light=True)
+        shadow = Texture('shadow', width=.5, offset=(-.25, .25))
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.fill_between([0,1], [1,1], agg_filter=shadow)  # create shadow first
+        ax.fill_between([0,1], [1,1], agg_filter=filt)
+        plt.show()
 
     """
 
@@ -126,7 +126,7 @@ class Texture(object):
         self.style = style
         if style == 'shadow':
             self.direction = kwargs.get('direction', 'up')
-            self.pad = kwargs.get('pad', .5)
+            self.width = kwargs.get('width', .5)
             self.alpha = kwargs.get('alpha', .5)
             self.color = kwargs.get('color', (0, 0, 0))
             self.cut_figure = kwargs.get('cut_figure', False)
@@ -322,7 +322,7 @@ class Texture(object):
         is_up = (self.direction == 'up')
 
         # Calculate and apply padding to image
-        pix = int(self.pad * dpi)
+        pix = int(self.width * dpi)
         if is_up == 'up':
             padded = np.zeros((nx, ny+pix))
             xs = ys = 0  # image start location
@@ -413,13 +413,13 @@ def test(style, **kwargs):
 def shadow_line(ax):
     """Demonstration of drop shadows.
     """
-    filtH = Texture('shadow', alpha=0.5, pad=.5,
+    filtH = Texture('shadow', alpha=0.5, width=.5,
                     cut_figure=False, direction='all',
                     offset=(.1, .2), win='hanning')
-    filtG = Texture('shadow', alpha=0.5, pad=.5,
+    filtG = Texture('shadow', alpha=0.5, width=.5,
                     cut_figure=False, direction='all',
                     offset=(.1, .2), win='gaussian')
-    filtU = Texture('shadow', alpha=0.5, pad=.5,
+    filtU = Texture('shadow', alpha=0.5, width=.5,
                     cut_figure=True, direction='up',
                     offset=(0., 0.), win='gaussian')
 
