@@ -155,8 +155,8 @@ class Texture(object):
             self.frac = kwargs.get('frac', .8)  # fraction of spaces to fill
             self.clip = (1. - dark)**3  # clip limit (max darkness)
             # make list of directions and pairs of directions.
-            # Directions are tuples of (dtn, axis) for np.roll
-            dtns = [(-1, 0), (-1, 1), (1, 0), (1, 1)]  # directions
+            # Directions are tuples of (dx, dy) for adding to indices
+            dtns = [(1, 0), (-1, 0), (0, 1), (0, -1)]  # directions
             self.pairs = []  # list of pairs of directions
             for i in range(3):
                 for j in range(i+1,4):
@@ -241,7 +241,7 @@ class Texture(object):
         nx, ny = alpha.shape
         # Expand image size so it takes multiples of block and space.
         # The buffers will be clipped later to fit into supplied size
-        shape = ((nx+n)//n, (ny+n)//n)
+        shape = (nx//n + 1, ny//n + 1)
         shape = ((shape[0]+(n+2)*space)//space * space,
                  (shape[1]+(n+2)*space)//space * space)
         # calculate number of points to be plotted.
@@ -278,19 +278,24 @@ class Texture(object):
             r.append(temp.reshape((slen, 6)))
         # Now stamp the points onto a buffer
         buffer = np.ones(shape)
+        bright = 1. - self.dark  # brightness
+        points = 3  # number of points in line
         for i in range(6):
             for j in range(2):
-                sub = np.ones(shape)
-                dtn, axis = self.pairs[i][j]
+                dx, dy = self.pairs[i][j]
                 x = ix[j][r[j][:,i]]
                 y = iy[j][r[j][:,i]]
-                sub[x, y] = 1. - self.dark
-                buffer *= sub
-                s2 = sub * sub
-                buffer *= np.roll(s2, dtn, axis)
-                buffer *= np.roll(s2 * sub, 2 * dtn, axis)
+                # bright gets darker as you raise it to higher powers.
+                buffer[x,y] = bright**points
+                for k in range(points-1):
+                    x += dx
+                    y += dy
+                    # wrap indices around if they fall outside shape
+                    x %= shape[0]
+                    y %= shape[1]
+                    # add brightest points last
+                    buffer[x,y] = bright**(points-1-k)
 
-        np.clip(buffer, self.clip, 1, buffer)
         large = np.ones((shape[0]*n, shape[1]*n))
         self._expand(buffer, large)
         noise = np.ones((nx, ny, 1))
