@@ -2277,10 +2277,10 @@ def Histograms(df, col=WxDF.tmx, months=None,
         right = 1
         if xpos[0] > xpos[1]:
             left, right = right, left
-        for i in [left, right]:
-            ax.text(xpos[i]+xdel[i], ypos, title[i], color=bgcolor,
-                        zorder=30, alpha=.75, size='medium',
-                        ha = align[i], va='bottom')
+        for i, p in zip(range(2), [left, right]):
+            ax.text(xpos[i]+xdel[p], ypos, title[i], color=bgcolor,
+                    zorder=30, alpha=.75, size='medium',
+                        ha = align[p], va='bottom')
 
 # Alternate approach using existing functions, but lacks options
 #    parts = ax.violinplot(data, pos, points=100, vert=False, widths=6.0,
